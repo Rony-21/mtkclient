@@ -98,20 +98,28 @@ class Stage2(metaclass=LogBase):
         self.info("Reading preloader...")
         if self.cdc.connected:
             if sectors == 0:
-                buffer = self.readflash(type=1, start=0, length=0x1000, display=False)
-                if len(buffer) != 0x1000:
+                buffer = self.readflash(type=1, start=0, length=0x4000, display=False)
+                if len(buffer) != 0x4000:
                     print("Error on reading boot1 area.")
                     return
                 if buffer[:9] == b'EMMC_BOOT':
                     startbrlyt = unpack("<I", buffer[0x10:0x14])[0]
                     if buffer[startbrlyt:startbrlyt + 5] == b"BRLYT":
                         start = unpack("<I", buffer[startbrlyt + 0xC:startbrlyt + 0xC + 4])[0]
-                        if buffer[start:start + 4] == b"MMM\x01":
+                        st = buffer[start:start + 4]
+                        if st == b"MMM\x01":
                             length = unpack("<I", buffer[start + 0x20:start + 0x24])[0]
                             self.readflash(type=1, start=start, length=length, display=True, filename=filename)
                             print("Done")
                             return
-                print("Error on getting preloader info, aborting.")
+                if buffer[:4] == b"MMM\x01":
+                    length = unpack("<I", buffer[start + 0x20:start + 0x24])[0]
+                    self.readflash(type=1, start=start, length=length, display=True, filename=filename)
+                    print("Done")
+                else:
+                    start=0
+                    length=0x40000
+                    self.readflash(type=1, start=start, length=length, display=True, filename=filename)
             else:
                 self.readflash(type=1, start=start, length=length, display=True, filename=filename)
             print("Done")
@@ -171,7 +179,7 @@ class Stage2(metaclass=LogBase):
         if filename is not None:
             rf.close()
 
-    def rpmb(self, start, length, filename):
+    def rpmb(self, start, length, filename, reverse=False):
         if start == 0:
             start = 0
         else:
@@ -199,7 +207,9 @@ class Stage2(metaclass=LogBase):
                 self.cdc.usbwrite(pack(">I", 0xf00dd00d))
                 self.cdc.usbwrite(pack(">I", 0x2000))
                 self.cdc.usbwrite(pack(">H", sector))
-                tmp = self.cdc.usbread(0x100, 0x100)[::-1]
+                tmp = self.cdc.usbread(0x100, 0x100)
+                if reverse:
+                    tmp=tmp[::-1]
                 if len(tmp) != 0x100:
                     self.error("Error on getting data")
                     return
@@ -234,6 +244,8 @@ def main():
     parser = argparse.ArgumentParser(description='Stage2 client (c) B.Kerler 2021.')
     parser.add_argument('--rpmb', dest='rpmb', action="store_true",
                         help='Dump rpmb')
+    parser.add_argument('--reverse', dest='reverse', action="store_true",
+                        help='Reverse rpmb byte order')
     parser.add_argument('--preloader', dest='preloader', action="store_true",
                         help='Dump preloader')
     parser.add_argument('--memread', dest='memread', action="store_true",
@@ -261,7 +273,7 @@ def main():
                 filename = os.path.join("logs", "rpmb")
             else:
                 filename = args.filename
-            st2.rpmb(start, length, filename)
+            st2.rpmb(start, length, filename, args.reverse)
         elif args.preloader:
             if args.filename is None:
                 filename = os.path.join("logs", "preloader")
