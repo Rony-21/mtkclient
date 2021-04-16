@@ -477,7 +477,7 @@ class Main(metaclass=LogBase):
                             if mtk.port.usbwrite(stage2data[pos:pos + size]):
                                 bytestowrite -= size
                                 pos += size
-                        mtk.port.usbwrite(b"")
+                        #mtk.port.usbwrite(b"")
                         time.sleep(0.1)
                         flag = mtk.port.rdword()
                         if flag != 0xD0D0D0D0:
@@ -493,7 +493,7 @@ class Main(metaclass=LogBase):
                             mtk.port.usbwrite(pack(">I", len(stage2data)))
                             bytestoread = len(stage2data)
                             while bytestoread > 0:
-                                size = min(bytestoread, 64)
+                                size = min(bytestoread, 1)
                                 rdata += mtk.port.usbread(size)
                                 bytestoread -= size
                             flag = mtk.port.rdword()

@@ -425,10 +425,7 @@ class DALegacy(metaclass=LogBase):
             is_gpt_solution = 0
             self.usbwrite(pack(">I", is_gpt_solution))
             toread = (6 * 4)
-        elif hwcode == 0x8163:
-            slc_percent = 0x20000
-            self.usbwrite(pack(">I", slc_percent))
-        elif hwcode == 0x6580:
+        elif hwcode == 0x6580 or hwcode == 0x8163:
             slc_percent = 0x1
             self.usbwrite(pack(">I", slc_percent))
             unk = b"\x46\x46\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\x00\x00\x00"
@@ -451,8 +448,7 @@ class DALegacy(metaclass=LogBase):
         if toread == 4 and buffer == pack(">I", 0xBC3):
             buffer += self.usbread(4)
             draminfo = self.usbread(16)
-            draminfo_rev = draminfo[:4][::-1] + draminfo[4:8][::-1] + draminfo[8:12][::-1] + draminfo[12:16][::-1]
-            draminfo_rev = draminfo_rev[:9]
+            draminfo = draminfo[:4][::-1] + draminfo[4:8][::-1] + draminfo[8:12][::-1] + draminfo[12:16][::-1]
             draminfo = draminfo[:9]
             self.info("DRAM config needed for : " + hexlify(draminfo).decode('utf-8'))
             if self.daconfig.preloader is None:
@@ -461,7 +457,7 @@ class DALegacy(metaclass=LogBase):
                     for file in files:
                         with open(os.path.join(root, file), "rb") as rf:
                             data = rf.read()
-                            if draminfo in data or draminfo_rev in data:
+                            if draminfo in data:
                                 self.daconfig.preloader = os.path.join(root, file)
                                 print("Detected preloader: " + self.daconfig.preloader)
                                 found = True
@@ -478,7 +474,9 @@ class DALegacy(metaclass=LogBase):
                         data = rf.read()
                         dramdata = data[data.rfind(b"MTK_BIN"):][0xC:][:-0x128]
                     self.usbwrite(self.Cmd.ENABLE_DRAM)  # E8
-                    if self.config.hwcode == 0x6580:
+                    if self.config.hwcode == 0x8163:
+                        val = 0x10
+                    elif self.config.hwcode == 0x6580:
                         val = 0x15
                     else:
                         val = 0x14
@@ -531,6 +529,9 @@ class DALegacy(metaclass=LogBase):
         self.flashconfig = read_object(self.usbread(0x26), configinfo)
         pi = read_object(self.usbread(0xA), passinfo)
         if pi["ack"] == 0x5A:
+            return True
+        elif pi['m_download_status'] == 0x5A:
+            tmp=self.usbread(1)
             return True
         return False
 
@@ -656,15 +657,16 @@ class DALegacy(metaclass=LogBase):
                 buffer = self.usbread(1)
                 if buffer != self.Rsp.ACK:
                     self.error(
-                        f"Error on sending brom stage {stage} addr {hex(pos)}: " + hexlify(buffer).decode('utf-8'))
+                        f"Error on sending brom stage {stage-1} addr {hex(pos)}: " + hexlify(buffer).decode('utf-8'))
                     break
             time.sleep(0.5)
             self.usbwrite(self.Rsp.ACK)
             buffer = self.usbread(1)
             if buffer == self.Rsp.ACK:
+                self.info(f"Successfully uploaded stage {stage-1}")
                 return True
         else:
-            self.error(f"Error on sending brom stage {stage} : " + hexlify(buffer).decode('utf-8'))
+            self.error(f"Error on sending brom stage {stage-1} : " + hexlify(buffer).decode('utf-8'))
         return False
 
     def check_usb_cmd(self):
