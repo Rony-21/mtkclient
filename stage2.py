@@ -42,7 +42,8 @@ class Stage2(metaclass=LogBase):
         buffer = bytearray()
         if filename is not None:
             wf = open(filename, "wb")
-        sectors = (length // 0x200) + (1 if length % 0x200 else 0)
+        sectors = (length // 0x200)
+        sectors += (1 if length % 0x200 else 0)
         startsector = (start // 0x200)
         # emmc_switch(1)
         self.cdc.usbwrite(pack(">I", 0xf00dd00d))
@@ -56,7 +57,7 @@ class Stage2(metaclass=LogBase):
         # self.cdc.usbwrite(pack(">I", 0xf00dd00d))
         # self.cdc.usbwrite(pack(">I", 0x3001))
 
-        bytestoread = sectors * 0x200
+        bytestoread = length
         bytesread = 0
         old = 0
         # emmc_read(0)
@@ -109,17 +110,26 @@ class Stage2(metaclass=LogBase):
                         st = buffer[start:start + 4]
                         if st == b"MMM\x01":
                             length = unpack("<I", buffer[start + 0x20:start + 0x24])[0]
-                            self.readflash(type=1, start=start, length=length, display=True, filename=filename)
-                            print("Done")
+                            self.readflash(type=1, start=0, length=start+length, display=True, filename=filename)
+                            if filename is not None:
+                                rfilename = ""
+                                with open(filename,"rb") as rf:
+                                    data=rf.read()
+                                    idx=data.find(b"MTK_BLOADER_INFO")
+                                    if idx!=-1:
+                                        rfilename = data[idx+0x1B:idx+0x3D].rstrip(b"\x00").decode('utf-8')
+                                if rfilename != "" and "logs" in filename:
+                                    os.rename(filename,os.path.join("logs",rfilename))
+                                    filename=os.path.join("logs",rfilename)
+                            if os.stat(filename).st_size!=start+length:
+                                print("Warning, please rerun command, length doesn't match.")
+                            print("Done writing to "+filename)
                             return
-                if buffer[:4] == b"MMM\x01":
-                    length = unpack("<I", buffer[start + 0x20:start + 0x24])[0]
-                    self.readflash(type=1, start=start, length=length, display=True, filename=filename)
-                    print("Done")
                 else:
-                    start=0
                     length=0x40000
-                    self.readflash(type=1, start=start, length=length, display=True, filename=filename)
+                    self.readflash(type=1, start=0, length=length, display=True, filename=filename)
+                    print("Done")
+                print("Error on getting preloader info, aborting.")
             else:
                 self.readflash(type=1, start=start, length=length, display=True, filename=filename)
             print("Done")
