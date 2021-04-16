@@ -110,20 +110,19 @@ class Stage2(metaclass=LogBase):
                         st = buffer[start:start + 4]
                         if st == b"MMM\x01":
                             length = unpack("<I", buffer[start + 0x20:start + 0x24])[0]
-                            self.readflash(type=1, start=0, length=start+length, display=True, filename=filename)
-                            if filename is not None:
-                                rfilename = ""
-                                with open(filename,"rb") as rf:
-                                    data=rf.read()
-                                    idx=data.find(b"MTK_BLOADER_INFO")
-                                    if idx!=-1:
-                                        rfilename = data[idx+0x1B:idx+0x3D].rstrip(b"\x00").decode('utf-8')
-                                if rfilename != "" and "logs" in filename:
-                                    os.rename(filename,os.path.join("logs",rfilename))
-                                    filename=os.path.join("logs",rfilename)
-                            if os.stat(filename).st_size!=start+length:
+                            data=self.readflash(type=1, start=0, length=start+length, display=True)
+                            if len(data)!=start+length:
                                 print("Warning, please rerun command, length doesn't match.")
-                            print("Done writing to "+filename)
+                            idx=data.find(b"MTK_BLOADER_INFO")
+                            if idx!=-1:
+                                filename = data[idx+0x1B:idx+0x3D].rstrip(b"\x00").decode('utf-8')
+                            with open(os.path.join("logs",filename),"wb") as wf:
+                                wf.write(data[start:start+length])
+                                print("Done writing to " + os.path.join("logs",filename))
+                            with open(os.path.join("logs","hdr_"+filename),"wb") as wf:
+                                wf.write(data[:start])
+                                print("Done writing to " + os.path.join("logs","hdr_"+filename))
+
                             return
                 else:
                     length=0x40000
