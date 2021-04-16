@@ -146,7 +146,7 @@ class Stage2(metaclass=LogBase):
             self.cdc.usbwrite(pack(">I", 0x4000))
             self.cdc.usbwrite(pack(">I", addr + pos))
             self.cdc.usbwrite(pack(">I", size))
-            if filename is not None:
+            if filename is None:
                 data += self.cdc.usbread(size, size)
             else:
                 wf.write(self.cdc.usbwrite(size, size))
