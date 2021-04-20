@@ -21,14 +21,13 @@ regval = {
 
 
 class cqdma_reg:
-    def __init__(self, mtk):
-        self.mtk = mtk
-        self.cqdma_base = mtk.config.chipconfig.cqdma_base
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
+    def __init__(self, setup):
+        self.cqdma_base = setup.cqdma_base
+        self.read32 = setup.read32
+        self.write32 = setup.write32
 
     def __setattr__(self, key, value):
-        if key in ("mtk", "cqdma_base", "read32", "write32", "regval"):
+        if key in ("cqdma_base", "read32", "write32", "regval"):
             return super(cqdma_reg, self).__setattr__(key, value)
         if key in regval:
             addr = regval[key] + self.cqdma_base
@@ -37,7 +36,7 @@ class cqdma_reg:
             return super(cqdma_reg, self).__setattr__(key, value)
 
     def __getattribute__(self, item):
-        if item in ("mtk", "cqdma_base", "read32", "write32", "regval"):
+        if item in ("cqdma_base", "read32", "write32", "regval"):
             return super(cqdma_reg, self).__getattribute__(item)
         if item in regval:
             addr = regval[item] + self.cqdma_base
@@ -47,16 +46,16 @@ class cqdma_reg:
 
 
 class cqdma(metaclass=LogBase):
-    def __init__(self, mtk, hwcode, loglevel=logging.INFO):
-        self.hwcode = hwcode
-        self.mtk = mtk
+    def __init__(self, setup, loglevel=logging.INFO):
+        self.setup = setup
+        self.hwcode = setup.hwcode
         self.__logger = self.__logger
-        self.chipconfig = self.mtk.config.chipconfig
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
+        self.read32 = setup.read32
+        self.write32 = setup.write32
         self.info = self.__logger.info
-        self.cqdma_base = self.mtk.config.chipconfig.cqdma_base
-        self.reg = cqdma_reg(mtk)
+        self.cqdma_base = setup.cqdma_base
+        self.ap_dma_mem = setup.ap_dma_mem
+        self.reg = cqdma_reg(setup)
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             if os.path.exists(logfilename):
@@ -83,7 +82,7 @@ class cqdma(metaclass=LogBase):
         return res
 
     def cqwrite32(self, addr, dwords):
-        dst_addr = self.chipconfig.ap_dma_mem  # AP_DMA_IrDA_o_MEM_ADDR (any DMA mem addr reg)
+        dst_addr = self.setup.ap_dma_mem  # AP_DMA_IrDA_o_MEM_ADDR (any DMA mem addr reg)
         if self.cqdma_base is not None:
             for i in range(len(dwords)):
                 self.write32(dst_addr, [dwords[i]])
@@ -124,7 +123,7 @@ class cqdma(metaclass=LogBase):
 
     def disable_range_blacklist(self):
         self.info("Disabling bootrom range checks..")
-        for field in self.mtk.config.chipconfig.blacklist:
+        for field in self.setup.blacklist:
             addr = field[0]
             values = field[1]
             if isinstance(values, int):

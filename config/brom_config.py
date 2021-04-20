@@ -343,7 +343,7 @@ hwconfig = {
                       da_payload_addr=0x201000,
                       pl_payload_addr=0x40200000,
                       gcpu_base=0x10216000,  # mt6735, 6737, 6753, 6735m
-                      sej_base=0x10008000,
+                      sej_base=0x10008000, # hacc
                       # no dxcc
                       cqdma_base=0x10217C00,
                       ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_O_RX_MEM_ADDR
@@ -854,7 +854,7 @@ hwconfig = {
         # no dxcc
         cqdma_base=0x10212C00,
         ap_dma_mem=0x11000000 + 0x1A0,
-        # blacklist
+        blacklist=[(0x102968,0x0)],
         damode=damodes.XFLASH,
         dacode=0x8167,
         name="MT8167/MT8516/MT8362"),
@@ -1000,7 +1000,7 @@ hwconfig = {
 # G70 (Infinix Hot 10)
 
 class Mtk_Config(metaclass=LogBase):
-    def __init__(self, mtk, hwcode, loglevel=logging.INFO):
+    def __init__(self, loglevel=logging.INFO):
         self.bmtflag = None
         self.bmtblockcount = None
         self.bmtpartsize = None
@@ -1016,10 +1016,9 @@ class Mtk_Config(metaclass=LogBase):
         self.baudrate = 115200
         self.flash = "emmc"
         self.cpu = ""
-        self.hwcode = hwcode
+        self.hwcode = None
         self.meid = None
         self.target_config = None
-        self.mtk = mtk
         self.chipconfig = chipconfig()
         if loglevel == logging.DEBUG:
             logfilename = "log.txt"
@@ -1058,6 +1057,7 @@ class Mtk_Config(metaclass=LogBase):
             self.chipconfig.dxcc_base = 0x10210000
 
     def init_hwcode(self, hwcode):
+        self.hwcode=hwcode
         if hwcode in hwconfig:
             self.chipconfig = hwconfig[hwcode]
         else:

@@ -136,11 +136,10 @@ regval = {
 
 
 class GCpuReg:
-    def __init__(self, mtk):
-        self.mtk = mtk
-        self.gcpu_base = mtk.config.chipconfig.gcpu_base
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
+    def __init__(self, setup):
+        self.gcpu_base = setup.gcpu_base
+        self.read32 = setup.read32
+        self.write32 = setup.write32
 
     def __setattr__(self, key, value):
         if key in ("mtk", "gcpu_base", "read32", "write32", "regval"):
@@ -187,16 +186,15 @@ def xor_data(a: bytearray, b: bytearray, length=None):
 
 
 class GCpu(metaclass=LogBase):
-    def __init__(self, mtk, loglevel=logging.INFO):
-        self.mtk = mtk
+    def __init__(self, setup, loglevel=logging.INFO):
         self.__logger = self.__logger
         self.info = self.__logger.info
         self.error = self.__logger.error
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
-        self.reg = GCpuReg(mtk)
-        self.gcpu_base = self.mtk.config.chipconfig.gcpu_base
-        self.hwcode = self.mtk.config.hwcode
+        self.read32 = setup.read32
+        self.write32 = setup.write32
+        self.reg = GCpuReg(setup)
+        self.gcpu_base = setup.gcpu_base
+        self.hwcode = setup.hwcode
         self.info = self.__logger.info
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
@@ -438,7 +436,7 @@ class GCpu(metaclass=LogBase):
 
     def disable_range_blacklist(self):
         self.info("Disabling bootrom range checks..")
-        for field in self.mtk.config.chipconfig.blacklist:
+        for field in self.setup.blacklist:
             addr = field[0]
             values = field[1]
             if isinstance(values, int):

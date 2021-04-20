@@ -54,14 +54,13 @@ regval = {
 
 
 class hacc_reg:
-    def __init__(self, mtk):
-        self.mtk = mtk
-        self.sej_base = mtk.config.chipconfig.sej_base
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
+    def __init__(self, setup):
+        self.sej_base = setup.sej_base
+        self.read32 = setup.read32
+        self.write32 = setup.write32
 
     def __setattr__(self, key, value):
-        if key in ("mtk", "sej_base", "read32", "write32", "regval"):
+        if key in ("sej_base", "read32", "write32", "regval"):
             return super(hacc_reg, self).__setattr__(key, value)
         if key in regval:
             addr = regval[key] + self.sej_base
@@ -70,7 +69,7 @@ class hacc_reg:
             return super(hacc_reg, self).__setattr__(key, value)
 
     def __getattribute__(self, item):
-        if item in ("mtk", "sej_base", "read32", "write32", "regval"):
+        if item in ("sej_base", "read32", "write32", "regval"):
             return super(hacc_reg, self).__getattribute__(item)
         if item in regval:
             addr = regval[item] + self.sej_base
@@ -136,15 +135,14 @@ class sej(metaclass=LogBase):
         0x168BEE66, 0x1284B684, 0xDF3BCE3A, 0x217F6FA2
     ]
 
-    def __init__(self, mtk, loglevel=logging.INFO):
-        self.mtk = mtk
+    def __init__(self, setup, loglevel=logging.INFO):
         self.__logger = self.__logger
-        self.hwcode = self.mtk.config.hwcode
-        self.reg = hacc_reg(mtk)
+        self.hwcode = setup.hwcode
+        self.reg = hacc_reg(setup)
         # mediatek,hacc, mediatek,sej
-        self.sej_base = self.mtk.config.chipconfig.sej_base
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
+        self.sej_base = setup.sej_base
+        self.read32 = setup.read32
+        self.write32 = setup.write32
         self.info = self.__logger.info
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")

@@ -8,15 +8,71 @@ from struct import pack, unpack
 from Library.usblib import usb_class
 from Library.utils import LogBase
 from Library.utils import print_progress
+from Library.hwcrypto import crypto_setup, hwcrypto
+from config.brom_config import Mtk_Config
 
 
 class Stage2(metaclass=LogBase):
+    def read32(self, addr, dwords=1):
+        result = []
+        for pos in range(dwords):
+            self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+            self.cdc.usbwrite(pack(">I", 0x4000))
+            self.cdc.usbwrite(pack(">I", addr + (pos * 4)))
+            self.cdc.usbwrite(pack(">I", 4))
+            result.append(unpack("<I", self.cdc.usbread(4, 4))[0])
+        if len(result) == 1:
+            return result[0]
+        return result
+
+    def cmd_C8(self, val) -> bool:
+        'Clear cache func'
+        self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+        self.cdc.usbwrite(pack(">I", 0x5000))
+        ack = self.cdc.usbread(4)
+        if ack == b"\xD0\xD0\xD0\xD0":
+            return True
+        return False
+
+    def write32(self, addr, dwords) -> bool:
+        if isinstance(dwords, int):
+            dwords = [dwords]
+        for pos in range(0, len(dwords)):
+            self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+            self.cdc.usbwrite(pack(">I", 0x4002))
+            self.cdc.usbwrite(pack(">I", addr + (pos * 4)))
+            self.cdc.usbwrite(pack(">I", 4))
+            self.cdc.usbwrite(pack("<I", dwords[pos]))
+            ack = self.cdc.usbread(4)
+            if ack == b"\xD0\xD0\xD0\xD0":
+                continue
+            else:
+                return False
+        return True
+
     def __init__(self, args, loglevel=logging.INFO):
         self.__logger = self.__logger
         self.args = args
         self.info = self.__logger.info
         self.error = self.__logger.error
         self.warning = self.__logger.warning
+
+        # Setup HW Crypto chip variables
+        setup = crypto_setup()
+        with open(os.path.join("logs", "hwcode"), "rb") as rf:
+            hwcode = int(rf.read(), 16)
+            self.config = Mtk_Config(loglevel)
+            self.config.init_hwcode(hwcode)
+            setup.blacklist = self.config.chipconfig.blacklist
+            setup.gcpu_base = self.config.chipconfig.gcpu_base
+            setup.dxcc_base = self.config.chipconfig.dxcc_base
+            setup.da_payload_addr = self.config.chipconfig.da_payload_addr
+            setup.sej_base = self.config.chipconfig.sej_base
+            setup.read32 = self.read32
+            setup.write32 = self.write32
+            setup.writemem = self.memwrite
+        self.hwcrypto = hwcrypto(setup, loglevel)
+
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             if os.path.exists(logfilename):
@@ -26,6 +82,7 @@ class Stage2(metaclass=LogBase):
             self.__logger.setLevel(logging.DEBUG)
         else:
             self.__logger.setLevel(logging.INFO)
+
         portconfig = [[0x0E8D, 0x0003, -1], [0x0E8D, 0x2000, -1]]
         self.cdc = usb_class(portconfig=portconfig, loglevel=loglevel, devclass=10)
 
@@ -110,22 +167,22 @@ class Stage2(metaclass=LogBase):
                         st = buffer[start:start + 4]
                         if st == b"MMM\x01":
                             length = unpack("<I", buffer[start + 0x20:start + 0x24])[0]
-                            data=self.readflash(type=1, start=0, length=start+length, display=True)
-                            if len(data)!=start+length:
+                            data = self.readflash(type=1, start=0, length=start + length, display=True)
+                            if len(data) != start + length:
                                 print("Warning, please rerun command, length doesn't match.")
-                            idx=data.find(b"MTK_BLOADER_INFO")
-                            if idx!=-1:
-                                filename = data[idx+0x1B:idx+0x3D].rstrip(b"\x00").decode('utf-8')
-                            with open(os.path.join("logs",filename),"wb") as wf:
-                                wf.write(data[start:start+length])
-                                print("Done writing to " + os.path.join("logs",filename))
-                            with open(os.path.join("logs","hdr_"+filename),"wb") as wf:
+                            idx = data.find(b"MTK_BLOADER_INFO")
+                            if idx != -1:
+                                filename = data[idx + 0x1B:idx + 0x3D].rstrip(b"\x00").decode('utf-8')
+                            with open(os.path.join("logs", filename), "wb") as wf:
+                                wf.write(data[start:start + length])
+                                print("Done writing to " + os.path.join("logs", filename))
+                            with open(os.path.join("logs", "hdr_" + filename), "wb") as wf:
                                 wf.write(data[:start])
-                                print("Done writing to " + os.path.join("logs","hdr_"+filename))
+                                print("Done writing to " + os.path.join("logs", "hdr_" + filename))
 
                             return
                 else:
-                    length=0x40000
+                    length = 0x40000
                     self.readflash(type=1, start=0, length=length, display=True, filename=filename)
                     print("Done")
                 print("Error on getting preloader info, aborting.")
@@ -133,7 +190,7 @@ class Stage2(metaclass=LogBase):
                 self.readflash(type=1, start=start, length=length, display=True, filename=filename)
             print("Done")
 
-    def memread(self, start, length, filename):
+    def memread(self, start, length, filename=None):
         bytestoread = length
         addr = start
         data = b""
@@ -155,8 +212,9 @@ class Stage2(metaclass=LogBase):
         self.info(f"{hex(start)}: " + hexlify(data).decode('utf-8'))
         if filename is not None:
             wf.close()
+        return data
 
-    def memwrite(self, start, data, filename):
+    def memwrite(self, start, data, filename=None):
         if filename is not None:
             rf = open(filename, "rb")
             bytestowrite = os.stat(filename).st_size
@@ -175,18 +233,22 @@ class Stage2(metaclass=LogBase):
             self.cdc.usbwrite(pack(">I", addr + pos))
             self.cdc.usbwrite(pack(">I", size))
             if filename is None:
-                self.cdc.usbwrite(data[pos:pos + 4])
+                wdata = data[pos:pos + size]
             else:
-                self.cdc.usbwrite(rf.read(4))
+                wdata = rf.read(size)
             bytestowrite -= size
             pos += size
-        ack = self.cdc.usbread(4)
-        if ack == b"\xD0\xD0\xD0\xD0":
-            self.info(f"Successfully wrote data to {hex(start)}.")
-        else:
-            self.info(f"Failed to write data to {hex(start)}.")
+            while len(wdata) % 4 != 0:
+                wdata += b"\x00"
+            self.cdc.usbwrite(wdata)
+
         if filename is not None:
             rf.close()
+        ack = self.cdc.usbread(4)
+        if ack == b"\xD0\xD0\xD0\xD0":
+            return True
+        else:
+            return False
 
     def rpmb(self, start, length, filename, reverse=False):
         if start == 0:
@@ -204,8 +266,8 @@ class Stage2(metaclass=LogBase):
         self.cdc.usbwrite(pack(">I", 0x1))
 
         # kick-wdt
-        self.cdc.usbwrite(pack(">I", 0xf00dd00d))
-        self.cdc.usbwrite(pack(">I", 0x3001))
+        # self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+        # self.cdc.usbwrite(pack(">I", 0x3001))
 
         print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
         bytesread = 0
@@ -218,7 +280,7 @@ class Stage2(metaclass=LogBase):
                 self.cdc.usbwrite(pack(">H", sector))
                 tmp = self.cdc.usbread(0x100, 0x100)
                 if reverse:
-                    tmp=tmp[::-1]
+                    tmp = tmp[::-1]
                 if len(tmp) != 0x100:
                     self.error("Error on getting data")
                     return
@@ -241,26 +303,40 @@ def getint(valuestr):
         return None
     try:
         return int(valuestr)
-    except:
+    except Exception as err:
+        err = err
         try:
             return int(valuestr, 16)
         except Exception as err:
+            err = err
             pass
     return 0
 
 
+cmds = {
+    "rpmb": 'Dump rpmb',
+    "preloader": 'Dump preloader',
+    "memread": "Read memory [Example: memread --start 0 --length 0x10]",
+    "memwrite": "Write memory [Example: memwrite --start 0x200000 --data 11223344",
+}
+
+info = "MTK Stage2 client (c) B.Kerler 2021"
+
+
+def showcommands():
+    print(info)
+    print("-----------------------------------\n")
+    print("Available commands are:\n")
+    for cmd in cmds:
+        print("%20s" % (cmd) + ":\t" + cmds[cmd])
+    print()
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Stage2 client (c) B.Kerler 2021.')
-    parser.add_argument('--rpmb', dest='rpmb', action="store_true",
-                        help='Dump rpmb')
+    parser = argparse.ArgumentParser(description=info)
+    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite")
     parser.add_argument('--reverse', dest='reverse', action="store_true",
-                        help='Reverse rpmb byte order')
-    parser.add_argument('--preloader', dest='preloader', action="store_true",
-                        help='Dump preloader')
-    parser.add_argument('--memread', dest='memread', action="store_true",
-                        help='Dump memory')
-    parser.add_argument('--memwrite', dest='memwrite', action="store_true",
-                        help='Write to memory')
+                        help='Reverse byte order (example: rpmb command)')
     parser.add_argument('--length', dest='length', type=str,
                         help='Max length to dump')
     parser.add_argument('--start', dest='start', type=str,
@@ -270,6 +346,10 @@ def main():
     parser.add_argument('--filename', dest='filename', type=str,
                         help='Read from / save to filename')
     args = parser.parse_args()
+    cmd = args.cmd
+    if cmd not in cmds:
+        showcommands()
+        exit(0)
 
     start = getint(args.start)
     length = getint(args.length)
@@ -277,22 +357,37 @@ def main():
         os.mkdir("logs")
     st2 = Stage2(args)
     if st2.connect():
-        if args.rpmb:
+        if cmd == "rpmb":
             if args.filename is None:
                 filename = os.path.join("logs", "rpmb")
             else:
                 filename = args.filename
             st2.rpmb(start, length, filename, args.reverse)
-        elif args.preloader:
+        elif cmd == "preloader":
             if args.filename is None:
                 filename = os.path.join("logs", "preloader")
             else:
                 filename = args.filename
             st2.preloader(start, length, filename=filename)
-        elif args.memread:
+        elif cmd == "memread":
+            if args.start is None:
+                print("Option --start is needed")
+                exit(0)
+            if args.length is None:
+                print("Option --length is needed")
+                exit(0)
             st2.memread(start, length, args.filename)
-        elif args.memwrite:
-            st2.memwrite(start, args.data, args.filename)
+        elif cmd == "memwrite":
+            if args.start is None:
+                print("Option --start is needed")
+                exit(0)
+            if args.data is None:
+                print("Option --data is needed")
+                exit(0)
+            if st2.memwrite(start, args.data, args.filename):
+                print(f"Successfully wrote data to {hex(start)}.")
+            else:
+                print(f"Failed to write data to {hex(start)}.")
     st2.close()
 
 

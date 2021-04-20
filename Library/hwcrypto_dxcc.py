@@ -9,16 +9,14 @@ regval = {
     "DXCC_CON": 0x0000,
 }
 
-
 class dxcc_reg:
-    def __init__(self, mtk):
-        self.mtk = mtk
-        self.dxcc_base = mtk.config.chipconfig.dxcc_base
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
+    def __init__(self, setup):
+        self.dxcc_base = setup.dxcc_base
+        self.read32 = setup.read32
+        self.write32 = setup.write32
 
     def __setattr__(self, key, value):
-        if key in ("mtk", "sej_base", "read32", "write32", "regval"):
+        if key in ("sej_base", "read32", "write32", "regval"):
             return super(dxcc_reg, self).__setattr__(key, value)
         if key in regval:
             addr = regval[key] + self.sej_base
@@ -27,7 +25,7 @@ class dxcc_reg:
             return super(dxcc_reg, self).__setattr__(key, value)
 
     def __getattribute__(self, item):
-        if item in ("mtk", "sej_base", "read32", "write32", "regval"):
+        if item in ("sej_base", "read32", "write32", "regval"):
             return super(dxcc_reg, self).__getattribute__(item)
         if item in regval:
             addr = regval[item] + self.sej_base
@@ -81,15 +79,17 @@ class dxcc(metaclass=LogBase):
         self.write32(self.dxcc_base + self.DX_DSCRPTR_QUEUE0_WORD4, data[4])
         self.write32(self.dxcc_base + self.DX_DSCRPTR_QUEUE0_WORD5, data[5])
 
-    def __init__(self, mtk, loglevel=logging.INFO):
-        self.mtk = mtk
+    def __init__(self, setup, loglevel=logging.INFO):
+        self.hwcode = setup.hwcode
+        self.dxcc_base = setup.dxcc_base
+        self.read32 = setup.read32
+        self.write32 = setup.write32
+        self.writemem = setup.writemem
+        self.da_payload_addr = setup.da_payload_addr
+
         self.__logger = self.__logger
-        self.hwcode = self.mtk.config.hwcode
-        self.reg = dxcc_reg(mtk)
-        self.dxcc_base = self.mtk.config.chipconfig.dxcc_base
-        self.read32 = self.mtk.preloader.read32
-        self.write32 = self.mtk.preloader.write32
-        self.writemem = self.mtk.preloader.writemem
+        self.reg = dxcc_reg(setup)
+
         self.info = self.__logger.info
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
@@ -110,23 +110,26 @@ class dxcc(metaclass=LogBase):
 
     def generate_fde(self):
         self.tzcc_clk(1)
-        fdekey = self.SBROM_KeyDerivation(1, self.fde_ikey, self.fde_salt, 0x10)
+        dstaddr=self.da_payload_addr - 0x300
+        fdekey = self.SBROM_KeyDerivation(1, self.fde_ikey, self.fde_salt, 0x10, dstaddr)
         self.tzcc_clk(0)
         return fdekey
 
     def generate_trustonic_fde(self, key_sz=32):
         fdekey = b""
+        dstaddr = self.da_payload_addr - 0x300
         for ctr in range(0, key_sz // 16):
             self.tzcc_clk(1)
             trustonic = b"TrustedCorekeymaster" + b'\x07' * 0x10
             seed = trustonic + pack("<B", ctr)
-            fdekey += self.SBROM_KeyDerivation(1, b"", seed, 16)
+            fdekey += self.SBROM_KeyDerivation(1, b"", seed, 0x10, dstaddr)
             self.tzcc_clk(0)
         return fdekey
 
     def generate_rpmb(self):
         self.tzcc_clk(1)
-        rpmbkey = self.SBROM_KeyDerivation(1, self.rpmb_ikey, self.rpmb_salt, 0x20)
+        dstaddr = self.da_payload_addr - 0x300
+        rpmbkey = self.SBROM_KeyDerivation(1, self.rpmb_ikey, self.rpmb_salt, 0x20, dstaddr)
         self.tzcc_clk(0)
         return rpmbkey
 
@@ -140,7 +143,7 @@ class dxcc(metaclass=LogBase):
     requestedlen=0x10
     """
 
-    def SBROM_KeyDerivation(self, encmode, key, salt, requestedlen):
+    def SBROM_KeyDerivation(self, encmode, key, salt, requestedlen, destaddr):
         result = bytearray()
         buffer = bytearray(b"\x00" * 0x43)
         if encmode - 1 > 4 or (1 << (encmode - 1) & 0x17) == 0:
@@ -159,21 +162,21 @@ class dxcc(metaclass=LogBase):
         saltstart = keyend + 1
         if len(salt) > 0:
             buffer[saltstart:saltstart + len(salt)] = salt
-
-        buffer[saltstart + len(salt)] = 8 * requestedlen
+        # ToDo: verify buffer structure
+        buffer[saltstart + len(salt):saltstart+len(salt)+4] = pack("<I",8 * requestedlen)
         # buffer=0153514e43214c465a005442544a80
         for i in range(0, iterlength):
             buffer[0] = i + 1
-            dstaddr = self.SBROM_AesCmac(encmode, 0x0, buffer, 0, bufferlen)
+            dstaddr = self.SBROM_AesCmac(encmode, 0x0, buffer, 0, bufferlen, destaddr)
             if dstaddr != 0:
                 for field in self.read32(dstaddr + 0x108, 4):
                     result.extend(pack("<I", field))
         return result
 
-    def SBROM_AesCmac(self, encmode, salt, buffer, flag, bufferlen):
+    def SBROM_AesCmac(self, encmode, salt, buffer, flag, bufferlen, destaddr):
         saltptr2 = 0
         dataptr2 = 0
-        dataptr = self.mtk.config.chipconfig.da_payload_addr + 0x118  # SP - 0xA8 - 0x24 - 0x28 - 0x38 - 0x88 - 0x30 - ((12 * 8) - 16)
+        dataptr = destaddr + 0x118  # SP - 0xA8 - 0x24 - 0x28 - 0x38 - 0x88 - 0x30 - ((12 * 8) - 16)
         saltptr = dataptr - 0x10
         destptr = saltptr - 0x108
         self.writemem(dataptr, buffer[:bufferlen])

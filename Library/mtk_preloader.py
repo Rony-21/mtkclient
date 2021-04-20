@@ -194,6 +194,8 @@ class Preloader(metaclass=LogBase):
             self.setreg_disablewatchdogtimer(self.config.hwcode)  # D4
         if self.display:
             self.info("HW code:\t\t\t" + hex(self.config.hwcode))
+            with open(os.path.join("logs", "hwcode"), "w") as wf:
+                wf.write(hex(self.config.hwcode))
         meid = self.get_meid()
         if len(meid) >= 16:
             with open(os.path.join("logs", "meid"), "wb") as wf:
@@ -257,7 +259,7 @@ class Preloader(metaclass=LogBase):
                 value += b"\x00"
             self.write32(addr + i, unpack("<I", value))
 
-    def run_ext_cmd(self, cmd):
+    def run_ext_cmd(self, cmd=b"\xB1"):
         self.usbwrite(self.Cmd.CMD_C8.value)
         assert self.usbread(1) == self.Cmd.CMD_C8.value
         cmd = bytes([cmd])

@@ -97,7 +97,7 @@ def split_by_n(seq, unit_count):
 class Mtk(metaclass=LogBase):
     def __init__(self, args, loader, loglevel=logging.INFO, vid=-1, pid=-1, interface=0):
         self.__logger = self.__logger
-        self.config = Mtk_Config(self, loglevel)
+        self.config = Mtk_Config(loglevel=loglevel)
         self.args = args
         self.info = self.__logger.info
         self.error = self.__logger.error
@@ -389,7 +389,7 @@ class Main(metaclass=LogBase):
                         self.info(f"Sent da to {hex(daaddr)}, length {hex(len(dadata))}")
                         if mtk.preloader.jump_da(daaddr):
                             self.info(f"Jumped to {hex(daaddr)}.")
-                            # time.sleep(2)
+                            time.sleep(2)
                             mtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
                                       interface=interface,
                                       args=self.args)
@@ -523,42 +523,6 @@ class Main(metaclass=LogBase):
                         ack = unpack(">I", mtk.port.usbread(4))[0]
                         if ack == 0xB1B2B3B4:
                             self.info("Successfully loaded stage2")
-                            """
-                            # emmc_switch(1)
-                            mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                            mtk.port.usbwrite(pack(">I", 0x1002))
-                            mtk.port.usbwrite(pack(">I", 0x1))
-                            # stat=mtk.port.usbread(4)
-
-                            # kick-wdt
-                            mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                            mtk.port.usbwrite(pack(">I", 0x3001))
-
-                            # emmc_read(0)
-                            mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                            mtk.port.usbwrite(pack(">I", 0x1000))
-                            mtk.port.usbwrite(pack(">I", 0x0))
-                            data = mtk.port.usbread(0x200,0x200)
-
-                            data = b""
-                            with open("rpmb", "wb") as wf:
-                                for addr in range(0, 4 * 1024 * 1024 // 0x100):
-                                    mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                                    mtk.port.usbwrite(pack(">I", 0x2000))
-                                    mtk.port.usbwrite(pack(">H", addr))
-                                    tmp = mtk.port.usbread(0x100, 0x100)
-                                    tmp=tmp[::-1]
-                                    if len(tmp) != 0x100:
-                                        print("Error on getting data")
-                                    wf.write(tmp)
-                            print("Done")
-                            # print(hexlify(data).decode('utf-8'))
-                        """
-                        # mtk = Mtk(loader=args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
-                        # interface=interface,    args=args)
-                        # res=mtk.preloader.init(args)
-                        # if not res:
-                        #    print("Error on loading preloader")
                 self.close()
             else:
                 mtk.port.close()

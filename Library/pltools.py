@@ -5,11 +5,8 @@ import os
 import logging
 from binascii import hexlify
 from struct import pack, unpack
-from Library.cqdma import cqdma
 from Library.utils import LogBase, print_progress
-from Library.hwcrypto_sej import sej
-from Library.hwcrypto_gcpu import GCpu
-from Library.hwcrypto_dxcc import dxcc
+from Library.hwcrypto import crypto_setup, hwcrypto
 from Library.kamakiri import Kamakiri
 from Library.Port import Port
 
@@ -31,13 +28,22 @@ class PLTools(metaclass=LogBase):
         self.hwcode = mtk.config.hwcode
 
         # exploit types
-        self.cqdma = cqdma(mtk, loglevel)
         self.kama = Kamakiri(self.mtk, self.__logger.level)
 
         # crypto types
-        self.gcpu = GCpu(mtk, loglevel)
-        self.sej = sej(mtk, loglevel)
-        self.dxcc = dxcc(mtk, loglevel)
+        setup=crypto_setup()
+        setup.hwcode = self.mtk.config.hwcode
+        setup.dxcc_base = self.mtk.config.chipconfig.dxcc_base
+        setup.read32 = self.mtk.preloader.read32
+        setup.write32 = self.mtk.preloader.write32
+        setup.writemem = self.mtk.preloader.writemem
+        setup.da_payload_addr = self.mtk.config.chipconfig.da_payload_addr
+        setup.gcpu_base = self.mtk.config.chipconfig.gcpu_base
+        setup.blacklist = self.mtk.config.chipconfig.blacklist
+        setup.sej_base = self.mtk.config.chipconfig.sej_base
+        setup.cqdma_base = self.mtk.config.chipconfig.cqdma_base
+        setup.ap_dma_mem = self.mtk.config.chipconfig.ap_dma_mem
+        self.hwcrypto=hwcrypto(setup,loglevel)
 
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
@@ -88,6 +94,9 @@ class PLTools(metaclass=LogBase):
             return True
         elif ptype == "kamakiri":
             self.info("Kamakiri / DA Run")
+            self.hwcrypto.disable_range_blacklist("cqdma",self.mtk.preloader.run_ext_cmd)
+            data=self.hwcrypto.aes_hwcrypt(data=b"",encrypt=False,mode="fde",btype="dxcc")
+            print(hexlify(data).decode('utf-8'))
             if self.kama.payload(payload, addr, True):
                 if dontack:
                     return True
@@ -180,8 +189,10 @@ class PLTools(metaclass=LogBase):
             else:
                 self.error("Error on sending payload: " + filename)
         elif btype == "test":
-            data=self.aes_hwcrypt(data=b"",encrypt=False,mode="fde",btype="dxcc")
+            self.hwcrypto.disable_range_blacklist("cqdma",self.mtk.preloader.run_ext_cmd)
+            data=self.hwcrypto.aes_hwcrypt(data=b"",encrypt=False,mode="fde",btype="dxcc")
             print(hexlify(data).decode('utf-8'))
+            exit(0)
         else:
             self.error("Unknown dumpbrom ptype: " + btype)
             self.info("Available ptypes are: amonet, kamakiri, hashimoto")
@@ -194,26 +205,9 @@ class PLTools(metaclass=LogBase):
         for i in range(32):
             data.append(self.config.meid[i % len(self.config.meid)])
         if btype == "":
-            encrypted = self.aes_hwcrypt(data=data, iv=iv, encrypt=encrypt, btype=btype)
+            encrypted = self.hwcrypto.aes_hwcrypt(data=data, iv=iv, encrypt=encrypt, btype=btype)
             return encrypted
         return False
-
-    def disable_range_blacklist(self, btype):
-        if btype == "gcpu":
-            self.info("GCPU Init Crypto Engine")
-            self.gcpu.init()
-            self.gcpu.acquire()
-            self.gcpu.init()
-            self.gcpu.acquire()
-            self.info("Disable Caches")
-            self.mtk.preloader.run_ext_cmd(0xB1)
-            self.info("GCPU Disable Range Blacklist")
-            self.gcpu.disable_range_blacklist()
-        elif btype == "cqdma":
-            self.info("Disable Caches")
-            self.mtk.preloader.run_ext_cmd(0xB1)
-            self.info("CQDMA Disable Range Blacklist")
-            self.cqdma.disable_range_blacklist()
 
     def dump_brom(self, filename, btype):
         if btype == "gcpu" and self.chipconfig.gcpu_base is None:
@@ -223,7 +217,7 @@ class PLTools(metaclass=LogBase):
             self.error("Chipconfig has no cqdma_base and/or ap_dma_mem field for this cpu")
             return False
         if self.chipconfig.blacklist:
-            self.disable_range_blacklist(btype)
+            self.hwcrypto.disable_range_blacklist(btype,self.mtk)
         self.info("Dump bootrom")
         print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
         old = 0
@@ -235,17 +229,17 @@ class PLTools(metaclass=LogBase):
                                    bar_length=50)
                     old = round(prog, 1)
                 if btype == "gcpu":
-                    wf.write(self.gcpu.aes_read_cbc(addr))
+                    wf.write(self.hwcrypto.gcpu.aes_read_cbc(addr))
                 elif btype == "cqdma":
                     if not self.chipconfig.blacklist:
-                        wf.write(self.cqdma.mem_read(addr, 16, True))
+                        wf.write(self.hwcrypto.cqdma.mem_read(addr, 16, True))
                     else:
-                        wf.write(self.cqdma.mem_read(addr, 16, False))
+                        wf.write(self.hwcrypto.cqdma.mem_read(addr, 16, False))
         print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
         return True
 
     def payload(self, payload, daaddr, ptype):
-        self.disable_range_blacklist(ptype)
+        self.hwcrypto.disable_range_blacklist(ptype,self.mtk.preloader.run_ext_cmd)
         try:
             while len(payload) % 4 != 0:
                 payload += b"\x00"
@@ -266,35 +260,3 @@ class PLTools(metaclass=LogBase):
             self.error("Failed to load payload file. Error: " + str(e))
             return False
 
-    def aes_hwcrypt(self, data, iv=None, encrypt=True, mode="cbc", btype="sej"):
-        if btype == "sej":
-            self.disable_range_blacklist(btype)
-            if encrypt:
-                if mode == "cbc":
-                    return self.sej.hw_aes128_cbc_encrypt(buf=data, encrypt=True)
-            else:
-                if mode == "cbc":
-                    return self.sej.hw_aes128_cbc_encrypt(buf=data, encrypt=False)
-        elif btype == "gcpu":
-            self.disable_range_blacklist(btype)
-            addr = self.chipconfig.da_payload_addr
-            if mode == "ebc":
-                return self.gcpu.aes_read_ebc(data=data, encrypt=encrypt)
-            if mode == "cbc":
-                if self.gcpu.aes_setup_cbc(addr=addr, data=data, iv=iv, encrypt=encrypt):
-                    return self.gcpu.aes_read_cbc(addr=addr, encrypt=encrypt)
-        elif btype == "cqdma":
-            self.disable_range_blacklist(btype)
-        elif btype == "dxcc":
-            if self.chipconfig.cqdma_base is not None:
-                self.disable_range_blacklist("cqdma")
-            elif self.chipconfig.gcpu_base is not None:
-                self.disable_range_blacklist("gcpu")
-            if mode == "fde":
-                return self.dxcc.generate_fde()
-            elif mode == "rpmb":
-                return self.dxcc.generate_rpmb()
-        else:
-            self.error("Unknown aes_hwcrypt type: " + btype)
-            self.error("aes_hwcrypt supported types are: sej")
-            return bytearray()

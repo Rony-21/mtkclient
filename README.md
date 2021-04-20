@@ -1,18 +1,12 @@
-# mtkclient
-Just some mtk tool for exploitation, reading/writing flash and doing crazy stuff. For linux, a patched kernel is needed (see Setup folder) (except for read/write flash).
-For windows, you need to install zadig driver and replace pid 0003 / pid 2000 driver.
+# MTK Research Repo
+brought to you by B.Kerler (viperbjk) and k4y0z (Chaosmaster), main exploit by @xyzz (amonet and kamakiri)
 
-Once the mtk.py script is running, boot into brom mode by powering off device, press and hold either
-vol up + power or vol down + power and connect the phone. Once detected by the tool,
-release the buttons.
+All the stuff in here is currently private. We will develop new features and new attacks,
+some will be shared with the hacking community :)
 
-## Installation
+## Install
 
-### Use FireISO as LiveDVD:
-[Download FireIso Live DVD](https://github.com/amonet-kamakiri/fireiso/releases/tag/v2.0.0) 
-is strongly recommended
-
-### Install python >=3.8
+### Grab python >=3.8
 
 ```
 sudo apt install python3
@@ -25,7 +19,14 @@ pip3 install -r requirements.txt
 sudo apt-get install gcc-arm-none-eabi
 ```
 
-### Compile patched kernel (if you don't use FireISO)
+### Compile payloads
+
+See src/readme.build for detailed instructions.
+
+```
+cd src
+make
+```
 
 - For linux (kamakiri attack), you need to recompile your linux kernel using this kernel patch :
 ```
@@ -66,10 +67,16 @@ sudo reboot
 ## Usage
 
 ### Bypass SLA, DAA and SBC (using generic_patcher_payload)
-`` 
+
+```
 ./mtk.py payload
-`` 
-If you want to use SP Flash tool afterwards, make sure you select "UART" in the settings, not "USB".
+```
+
+### Run custom payload
+
+```
+./mtk.py payload --payload=payload.bin [--var1=var1] [--wdt=wdt] [--uartaddr=addr] [--da_addr=addr] [--brom_addr=addr]
+```
 
 ### Dump brom
 - Device has to be in bootrom mode, or da mode has to be crashed to enter damode
@@ -81,52 +88,6 @@ If you want to use SP Flash tool afterwards, make sure you select "UART" in the 
 ```
 ./mtk.py dumpbrom --ptype=["amonet","kamakiri","hashimoto"] [--filename=brom.bin]
 ```
-
-### Run custom payload
-
-```
-./mtk.py payload --payload=payload.bin [--var1=var1] [--wdt=wdt] [--uartaddr=addr] [--da_addr=addr] [--brom_addr=addr]
-```
-
-### Run stage2 in bootrom
-`` 
-./mtk.py stage
-`` 
-
-### Run stage2 in preloader
-`` 
-./mtk.py plstage
-`` 
-
-### Read rpmb in stage2 mode
-`` 
-./stage2.py --rpmb
-`` 
-
-### Read preloader in stage2 mode
-`` 
-./stage2.py --preloader
-`` 
-
-### Read memory as hex data in stage2 mode
-`` 
-./stage2.py --memread --start 0x0 --length 0x16
-`` 
-
-### Read memory to file in stage2 mode
-`` 
-./stage2.py --memread --start 0x0 --length 0x16 --filename brom.bin
-`` 
-
-### Write hex data to memory in stage2 mode
-`` 
-./stage2.py --memwrite --start 0x0 --data 12345678AABBCCDD
-`` 
-
-### Write memory from file in stage2 mode
-`` 
-./stage2.py --memwrite --start 0x0 --filename brom.bin
-`` 
 
 ### Crash da in order to enter brom
 
@@ -160,42 +121,83 @@ Show gpt (currently only works if device has gpt)
 ./mtk.py printgpt
 ```
 
+### Run stage 2
 
-### Write flash
-(currently only works in da mode)
-
-Write filename boot.bin to boot partition
+1. Install in brom mode via kamakiri
 
 ```
-./mtk.py w boot boot.bin
+./mtk.py stage
 ```
 
-Write filename flash.bin as full flash (currently only works in da mode)
+1. or install in preloader mode via send_da:
+
+Show gpt (currently only works if device has gpt)
 
 ```
-./mtk.py wf flash.bin
+./mtk.py plstage
 ```
 
-Write all files in directory "out" to the flash partitions
+2. Run stage2 tools
 
+#### Read rpmb
 ```
-./mtk.py wl out
-```
-
-### Erase flash
-
-Erase boot partition
-```
-./mtk.py e boot
+./stage2.py -rpmb
 ```
 
+#### Read preloader
+```
+./stage2.py -preloader
+```
 
-### I need logs !
+#### Dump memory as hex
+```
+./stage2.py -readmem [addr] [length]
+```
 
-- Run the mtk.py tool with --debugmode. Log will be written to log.txt (hopefully)
+#### Write memory as hex
+```
+./stage2.py -writemem [addr] [length] [hexstring]
+```
+
 
 ## Rules / Infos
 
 ### Chip details / configs
 - Go to config/brom_config.py
 - Unknown usb vid/pids for autodetection go to config/usb_ids.py
+
+### Additional Tools
+
+#### Main tools :
+- Tools/brom_to_offs.py -> For automated offset/function finding for brom exploit
+- Tools/emulate_payload.py -> Emulate payload to see if payload works in brom as expected
+- Tools/da_parser.py -> In order to parse MTK proprietary tools / structures
+
+#### Sign Tee and trustlets
+- See Tools/Signer/mtksign.py for signing
+- See Tools/Signer/rss_verify.py for key checks
+
+### ToDos :
+- Add amonet payload support
+- Add HUK/Serial/RPMB Key extraction
+- Add Footer/Userdata decryption
+- Add support of custom ramdisks (boot)
+- Add/verify write function
+- Fix read for bootrom mode (DA mode works)
+- Replace proprietary AllInOne DA Loaders with own custom DA Loaders
+- Find more brom-exploits and DA-crashes
+- Modem emulation, tools
+- Add Jtag stuff
+- Include Windows Driver Auto-Installer
+- 6580 DA works, but kamakiri fails
+- 6582 completely fails
+
+### Where do I put my bootroms ?
+
+- Copy them into the bootrom directory [chipname]_[chipcode/hwcode].bin, for example : "mt6761_717.bin"
+  Bootroms will be shared only in this group and will NOT be made public.
+
+
+### I need logs !
+
+- Run the mtk.py tool with --debugmode. Log will be written to log.txt (hopefully)
