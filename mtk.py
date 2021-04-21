@@ -705,12 +705,11 @@ class Main(metaclass=LogBase):
                     if partition.name in pnames:
                         print(f"Detected partition: {partition.name}")
                         if partition.name in ["userdata2", "userdata"]:
-                            data = mtk.daloader.readflash(
-                                (partition.sector + partition.sectors) * mtk.daloader.daconfig.pagesize - 0x4000,
-                                0x4000, "", False)
+                            data = mtk.daloader.readflash(addr=(partition.sector + partition.sectors) * mtk.daloader.daconfig.pagesize - 0x4000,
+                                length=0x4000, filename="", parttype="user",display=False)
                         else:
-                            data = mtk.daloader.readflash(partition.sector * mtk.daloader.daconfig.pagesize, 0x4000, "",
-                                                          False)
+                            data = mtk.daloader.readflash(addr=partition.sector * mtk.daloader.daconfig.pagesize,
+                                                          length=0x4000, filename="", parttype="user", display=False)
                         if data == b"":
                             continue
                         val = struct.unpack("<I", data[:4])[0]

@@ -517,7 +517,7 @@ class DAXFlash(metaclass=LogBase):
         return False
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
-        if parttype is None or parttype == "user":
+        if parttype is None or parttype == "user" or parttype == "":
             parttype = PartitionType.MTK_DA_EMMC_PART_USER
         elif parttype == "boot1":
             parttype = PartitionType.MTK_DA_EMMC_PART_BOOT1
