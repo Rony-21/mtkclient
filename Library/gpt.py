@@ -219,7 +219,7 @@ class gpt(metaclass=LogBase):
                                                                       self.totalsectors))
 
     def tostring(self):
-        mstr = ("\nGPT Table:\n-------------")
+        mstr = "\nGPT Table:\n-------------"
         for partition in self.partentries:
             mstr += ("{:20} Offset 0x{:016x}, Length 0x{:016x}, Flags 0x{:08x}, UUID {}, Type {}".format(
                 partition.name + ":", partition.sector * self.sectorsize, partition.sectors * self.sectorsize,
@@ -274,13 +274,15 @@ class gpt(metaclass=LogBase):
             print(f"Wrote partition xml as {fname}")
 
     def print_gptfile(self, filename):
-        with open(filename, "rb") as rf:
-            sectorsize = 4096
-            result = self.parse(rf.read(), sectorsize)
-            if result:
-                print(self.tostring())
-            return result
-        return False
+        try:
+            with open(filename, "rb") as rf:
+                sectorsize = 4096
+                result = self.parse(rf.read(), sectorsize)
+                if result:
+                    print(self.tostring())
+                return result
+        except FileNotFoundError:
+            return False
 
     def test_gpt(self):
         res = self.print_gptfile(os.path.join("TestFiles", "gpt_sm8180x.bin"))

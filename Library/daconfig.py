@@ -96,7 +96,7 @@ class DAconfig(metaclass=LogBase):
             loaders = []
             for root, dirs, files in os.walk("Loader", topdown=False):
                 for file in files:
-                    if not "Preloader" in root:
+                    if "Preloader" not in root:
                         loaders.append(os.path.join(root, file))
             for loader in loaders:
                 self.parse_da_loader(loader)

@@ -94,9 +94,6 @@ class PLTools(metaclass=LogBase):
             return True
         elif ptype == "kamakiri":
             self.info("Kamakiri / DA Run")
-            self.hwcrypto.disable_range_blacklist("cqdma",self.mtk.preloader.run_ext_cmd)
-            data=self.hwcrypto.aes_hwcrypt(data=b"",encrypt=False,mode="fde",btype="dxcc")
-            print(hexlify(data).decode('utf-8'))
             if self.kama.payload(payload, addr, True):
                 if dontack:
                     return True
