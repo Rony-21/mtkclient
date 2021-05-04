@@ -8,9 +8,12 @@ release the buttons.
 
 ## Installation
 
+### Use Re LiveDVD (everything ready to go):
+[Download Re Live DVD](https://drive.google.com/file/d/1aroCr2VaXON6fWB6G8R1sz8wMvSbleck/view?usp=sharing)
+
 ### Use FireISO as LiveDVD:
 [Download FireIso Live DVD](https://github.com/amonet-kamakiri/fireiso/releases/tag/v2.0.0) 
-is strongly recommended
+
 
 ### Install python >=3.8
 
