@@ -12,8 +12,7 @@ release the buttons.
 [Download Re Live DVD](https://drive.google.com/file/d/1aroCr2VaXON6fWB6G8R1sz8wMvSbleck/view?usp=sharing)
 
 ### Use FireISO as LiveDVD:
-[Download FireIso Live DVD](https://github.com/amonet-kamakiri/fireiso/releases/tag/v2.0.0) 
-
+[Download FireIso Live DVD](https://github.com/amonet-kamakiri/fireiso/releases/tag/v2.0.0)
 
 ### Install python >=3.8
 
@@ -139,25 +138,32 @@ If you want to use SP Flash tool afterwards, make sure you select "UART" in the 
 
 ### Read flash
 
-Dump boot partition to filename boot.bin (currently only works in da mode)
+Dump boot partition to filename boot.bin via preloader
 
 ```
 ./mtk.py r boot boot.bin
 ```
 
-Read full flash to filename flash.bin (currently only works in da mode)
+Dump boot partition to filename boot.bin via bootrom
+
+```
+./mtk.py r boot boot.bin --preloader=Loader/Preloader/your_device_preloader.bin
+```
+
+
+Read full flash to filename flash.bin (use --preloader for brom)
 
 ```
 ./mtk.py rf flash.bin
 ```
 
-Dump all partitions to directory "out". (currently only works in da mode)
+Dump all partitions to directory "out". (use --preloader for brom)
 
 ```
 ./mtk.py rl out
 ```
 
-Show gpt (currently only works if device has gpt)
+Show gpt (use --preloader for brom)
 
 ```
 ./mtk.py printgpt
@@ -165,7 +171,7 @@ Show gpt (currently only works if device has gpt)
 
 
 ### Write flash
-(currently only works in da mode)
+(use --preloader for brom)
 
 Write filename boot.bin to boot partition
 
@@ -187,7 +193,7 @@ Write all files in directory "out" to the flash partitions
 
 ### Erase flash
 
-Erase boot partition
+Erase boot partition (use --preloader for brom)
 ```
 ./mtk.py e boot
 ```

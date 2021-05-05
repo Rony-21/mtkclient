@@ -1,7 +1,8 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# (c) B.Kerler 2018-2021 MIT License
 import logging
-import os
-
-from Library.utils import LogBase
+from Library.utils import LogBase, logsetup
 from Library.hwcrypto_gcpu import GCpu
 from Library.hwcrypto_dxcc import dxcc
 from Library.hwcrypto_sej import sej
@@ -22,20 +23,7 @@ class crypto_setup:
 
 class hwcrypto(metaclass=LogBase):
     def __init__(self, setup, loglevel=logging.INFO):
-        self.__logger = self.__logger
-        self.info = self.__logger.info
-        self.debug = self.__logger.debug
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
+        self.__logger = logsetup(self, self.__logger, loglevel)
 
         self.dxcc = dxcc(setup, loglevel)
         self.gcpu = GCpu(setup, loglevel)
@@ -43,6 +31,8 @@ class hwcrypto(metaclass=LogBase):
         self.cqdma = cqdma(setup, loglevel)
         self.hwcode = setup.hwcode
         self.setup = setup
+        self.read32 = setup.read32
+        self.write32 = setup.write32
 
     def aes_hwcrypt(self, data, iv=None, encrypt=True, mode="cbc", btype="sej"):
         if btype == "sej":
@@ -66,10 +56,15 @@ class hwcrypto(metaclass=LogBase):
                 return self.dxcc.generate_rpmb()
             elif mode == "t-fde":
                 return self.dxcc.generate_trustonic_fde()
+            elif mode == "prov":
+                return self.dxcc.generate_provision_key()
         else:
             self.error("Unknown aes_hwcrypt type: " + btype)
             self.error("aes_hwcrypt supported types are: sej")
             return bytearray()
+
+    def disable_hypervisor(self):
+        self.write32(self.read32(0x1021a060)|0x1)
 
     def disable_range_blacklist(self, btype, refreshcache):
         if btype == "gcpu":

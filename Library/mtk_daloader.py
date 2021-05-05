@@ -3,7 +3,7 @@
 # (c) B.Kerler 2018-2021 MIT License
 import logging
 import os
-from Library.utils import LogBase
+from Library.utils import LogBase, logsetup
 from Library.error import ErrorHandler
 from Library.daconfig import DAconfig
 from Library.mtk_dalegacy import DALegacy
@@ -13,17 +13,14 @@ from config.brom_config import damodes
 
 class DAloader(metaclass=LogBase):
     def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.mtk = mtk
-        self.__logger = self.__logger
         self.blver = 1
         self.loader = loader
         self.preloader = preloader
         self.loglevel = loglevel
         self.eh = ErrorHandler()
         self.config = self.mtk.config
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
         self.echo = self.mtk.port.echo
@@ -32,15 +29,6 @@ class DAloader(metaclass=LogBase):
         self.rword = self.mtk.port.rword
         self.daconfig = DAconfig(self.mtk, loader, preloader, loglevel)
         self.da = None
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
     def set_da(self):
         if self.config.chipconfig.damode == damodes.DEFAULT:

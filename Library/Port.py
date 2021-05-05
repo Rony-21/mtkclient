@@ -4,12 +4,11 @@
 import os
 import sys
 import logging
-from Library.utils import LogBase
-import usb.core
+from Library.utils import LogBase, logsetup
 import time
 from Library.usblib import usb_class
 from binascii import hexlify
-from struct import pack, unpack
+from struct import pack
 
 
 class Port(metaclass=LogBase):
@@ -22,14 +21,10 @@ class Port(metaclass=LogBase):
             self.pid = pid
 
     def __init__(self, mtk, portconfig, loglevel=logging.INFO):
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.config = mtk.config
         self.mtk = mtk
-        self.__logger = self.__logger
         self.cdc = usb_class(portconfig=portconfig, loglevel=loglevel, devclass=10)
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
-        self.debug = self.__logger.debug
         self.usbread = self.cdc.usbread
         self.usbwrite = self.cdc.usbwrite
         self.close = self.cdc.close

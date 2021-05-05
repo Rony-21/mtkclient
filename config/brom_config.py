@@ -10,8 +10,9 @@ class damodes:
 
 class chipconfig:
     def __init__(self, var1=None, watchdog=None, uart=None, brom_payload_addr=None,
-                 da_payload_addr=None, pl_payload_addr=None, cqdma_base=None, sej_base=None, dxcc_base=None, gcpu_base=None,
-                 ap_dma_mem=None, name="", description="", dacode=None, blacklist=(), damode=damodes.DEFAULT):
+                 da_payload_addr=None, pl_payload_addr=None, cqdma_base=None, sej_base=None, dxcc_base=None,
+                 gcpu_base=None, ap_dma_mem=None, name="", description="", dacode=None,
+                 blacklist=(), damode=damodes.DEFAULT, loader=None):
         self.var1 = var1
         self.watchdog = watchdog
         self.uart = uart
@@ -29,6 +30,7 @@ class chipconfig:
         self.gcpu_base = gcpu_base
         self.dacode = dacode
         self.damode = damode
+        self.loader = loader
 
 
     # Credits to cyrozap and Chaosmaster for some values
@@ -61,20 +63,6 @@ class chipconfig:
 
 
 hwconfig = {
-    0x5700: chipconfig(  # var1
-        # watchdog
-        # uart
-        # brom_payload_addr
-        # da_payload_addr
-        gcpu_base=0x10016000,
-        # sej_base
-        # no dxcc
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
-        damode=damodes.DEFAULT,
-        # dacode
-        name="MT5700"),
     0x2503: chipconfig(  # var1
         # watchdog
         # uart
@@ -89,33 +77,6 @@ hwconfig = {
         damode=damodes.DEFAULT,
         # dacode
         name="MT2503"),
-    0x6255: chipconfig(  # var1
-        # watchdog
-        # uart
-        # brom_payload_addr
-        # da_payload_addr
-        # gcpu_base
-        sej_base=0x80140000,
-        # no dxcc
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
-        damode=damodes.DEFAULT,
-        # dacode
-        name="MT6255"),
-    0x6280: chipconfig(  # var1
-        # watchdog
-        # uart
-        # brom_payload_addr
-        # da_payload_addr
-        # gcpu_base
-        sej_base=0x80080000,
-        # no dxcc
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
-        damode=damodes.DEFAULT,
-        name="MT6280"),
     0x2601: chipconfig(  # var1
         # uart
         # brom_payload_addr
@@ -144,6 +105,34 @@ hwconfig = {
         dacode=0x3967,
         damode=damodes.DEFAULT,
         name="MT3967"),
+    0x5700: chipconfig(  # var1
+        # watchdog
+        # uart
+        # brom_payload_addr
+        # da_payload_addr
+        gcpu_base=0x10016000,
+        # sej_base
+        # no dxcc
+        # cqdma_base
+        # ap_dma_mem
+        # blacklist
+        damode=damodes.DEFAULT,
+        # dacode
+        name="MT5700"),
+    0x6255: chipconfig(  # var1
+        # watchdog
+        # uart
+        # brom_payload_addr
+        # da_payload_addr
+        # gcpu_base
+        sej_base=0x80140000,
+        # no dxcc
+        # cqdma_base
+        # ap_dma_mem
+        # blacklist
+        damode=damodes.DEFAULT,
+        # dacode
+        name="MT6255"),
     0x6261: chipconfig(var1=0x28,   # Smartwatch, confirmed
                        watchdog=0xA0030000,
                        uart=0xA0080000,
@@ -157,7 +146,23 @@ hwconfig = {
                        # blacklist
                        damode=damodes.DEFAULT,
                        dacode=0x6261,
-                       name="MT6261"),
+                       name="MT6261",
+                       loader="mt6261_payload.bin"
+                       ),
+    0x6280: chipconfig(  # var1
+        # watchdog
+        # uart
+        # brom_payload_addr
+        # da_payload_addr
+        # gcpu_base
+        sej_base=0x80080000,
+        # no dxcc
+        # cqdma_base
+        # ap_dma_mem
+        # blacklist
+        damode=damodes.DEFAULT,
+        name="MT6280"
+    ),
     0x633: chipconfig(  # var1
         watchdog=0x10007000,
         uart=0x11002000,
@@ -210,7 +215,8 @@ hwconfig = {
                        # blacklist
                        damode=damodes.DEFAULT,  #
                        dacode=0x6572,
-                       name="MT6572"),
+                       name="MT6572",
+        loader="mt6572_payload.bin"),
     0x6573: chipconfig(  # var1
         watchdog=0x220,
         # uart
@@ -265,7 +271,8 @@ hwconfig = {
         blacklist=[(0x102764, 0x0)],
         damode=damodes.DEFAULT,
         dacode=0x6580,
-        name="MT6580"),
+        name="MT6580",
+        loader="mt6580_payload.bin"),
     0x6582: chipconfig(var1=0xA, #confirmed
                        watchdog=0x10007000,
                        uart=0x11002000,
@@ -280,7 +287,8 @@ hwconfig = {
                        blacklist=[(0x102788, 0x0)],
                        damode=damodes.DEFAULT,  #
                        dacode=0x6582,
-                       name="MT6582/MT6574"),
+                       name="MT6582/MT6574",
+        loader="mt6582_payload.bin"),
     0x6588: chipconfig(  # var1
         watchdog=0x10000000,
         # uart
@@ -350,7 +358,8 @@ hwconfig = {
                       blacklist=[(0x00102760, 0x0), (0x00105704, 0x0)],
                       damode=damodes.DEFAULT,  #
                       dacode=0x6735,
-                      name="MT6735/T"),
+                      name="MT6735/T",
+        loader="mt6735_payload.bin"),
     0x335: chipconfig(var1=0x28,  # confirmed
                       watchdog=0x10212000,
                       uart=0x11002000,
@@ -365,7 +374,8 @@ hwconfig = {
                       blacklist=[(0x00102760, 0x0), (0x00105704, 0x0)],
                       damode=damodes.DEFAULT,  #
                       dacode=0x6735,
-                      name="MT6737M"),
+                      name="MT6737M",
+        loader="mt6737_payload.bin"),
     # MT6738
     0x699: chipconfig(var1=0xB4,
                       watchdog=0x10007000,
@@ -381,7 +391,8 @@ hwconfig = {
                       blacklist=[(0x10282C, 0x0)],
                       damode=damodes.XFLASH,
                       dacode=0x6739,
-                      name="MT6739/MT6731"),
+                      name="MT6739/MT6731",
+        loader="mt6739_payload.bin"),
     0x6752: chipconfig(  # var1
         watchdog=0x10007000,
         uart=0x11002000,
@@ -411,7 +422,8 @@ hwconfig = {
         blacklist=[(0x00102760, 0x0), (0x00105704, 0x0)],
         damode=damodes.DEFAULT,  #
         dacode=0x6753,
-        name="MT6753"),
+        name="MT6753",
+        loader="mt6753_payload.bin"),
     0x571: chipconfig(  # var1
         watchdog=0x10007000,
         # uart
@@ -478,7 +490,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6755,
                       name="MT6755/M/T/S",
-                      description="Helio P10/P15/P18"),
+                      description="Helio P10/P15/P18",
+        loader="mt6755_payload.bin"),
     0x551: chipconfig(var1=0xA,
                       watchdog=0x10007000,
                       uart=0x11002000,
@@ -492,7 +505,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6757,
                       name="MT6757/MT6757D",
-                      description="Helio P20"),
+                      description="Helio P20",
+        loader="mt6757_payload.bin"),
     0x688: chipconfig(  # var1
         watchdog=0x10210000,
         uart=0x11020000,
@@ -535,7 +549,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6761,
                       name="MT6761/MT6762/MT3369",
-                      description="Helio A20/P22/A22/A25/G25"),
+                      description="Helio A20/P22/A22/A25/G25",
+        loader="mt6761_payload.bin"),
     0x690: chipconfig(var1=0x7F,
                       watchdog=0x10007000,
                       uart=0x11002000,
@@ -550,7 +565,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6763,
                       name="MT6763",
-                      description="Helio P23"),
+                      description="Helio P23",
+        loader="mt6763_payload.bin"),
     0x766: chipconfig(var1=0x25, #confirmed
                       watchdog=0x10007000,
                       uart=0x11002000,
@@ -566,7 +582,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6765,
                       name="MT6765",
-                      description="Helio P35/G35"),
+                      description="Helio P35/G35",
+        loader="mt6765_payload.bin"),
     0x707: chipconfig(var1=0x25,  # todo
                       watchdog=0x10007000,
                       uart=0x11002000,
@@ -581,7 +598,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6768,
                       name="MT6768",
-                      description="Helio P65/G85"),
+                      description="Helio P65/G85",
+        loader="mt6768_payload.bin"),
     0x788: chipconfig(var1=0xA,
                       watchdog=0x10007000,
                       uart=0x11002000,
@@ -596,7 +614,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6771,
                       name="MT6771/MT8385/MT8183/MT8666",
-                      description="Helio P60/P70/G80"),
+                      description="Helio P60/P70/G80",
+        loader="mt6771_payload.bin"),
     #blacklist=[(0x00102830, 0x00200008),  # Static permission table pointer
     #           (0x00102834, 2),  # Static permission table entry count
     #           (0x00200000, 0x00000000),  # Memory region minimum address
@@ -622,8 +641,9 @@ hwconfig = {
         damode=damodes.XFLASH,
         dacode=0x6779,
         name="MT6779",
-        description="Helio P90"),
-    0x813: chipconfig(  # var1=0xA, #todo
+        description="Helio P90",
+        loader="mt6779_payload.bin"),
+    0x813: chipconfig(var1=0xA, #confirmed
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
@@ -637,7 +657,8 @@ hwconfig = {
         damode=damodes.XFLASH,
         dacode=0x6785,
         name="MT6785",
-        description="Helio G90"),
+        description="Helio G90",
+        loader="mt6785_payload.bin"),
     0x6795: chipconfig(
         var1=0xA, #confirmed
         watchdog=0x10007000,
@@ -653,7 +674,8 @@ hwconfig = {
         damode=damodes.DEFAULT,  #
         dacode=0x6795,
         name="MT6795",
-        description="Helio X10"),
+        description="Helio X10",
+        loader="mt6795_payload.bin"),
     0x279: chipconfig(var1=0xA,  # confirmed
                       watchdog=0x10007000,
                       uart=0x11002000,
@@ -667,7 +689,8 @@ hwconfig = {
                       blacklist=[(0x0010276C, 0x0), (0x00105704, 0x0)],
                       damode=damodes.XFLASH,
                       dacode=0x6797,
-                      name="MT6797"),
+                      name="MT6797",
+        loader="mt6797_payload.bin"),
     0x562: chipconfig(var1=0xA,  # confirmed
                       watchdog=0x10211000,
                       uart=0x11020000,
@@ -681,7 +704,8 @@ hwconfig = {
                       blacklist=[(0x00102870, 0x0)],
                       damode=damodes.XFLASH,
                       dacode=0x6799,
-                      name="MT6799"),
+                      name="MT6799",
+        loader="mt6799_payload.bin"),
     0x989: chipconfig(  # var1
         # watchdog
         # uart
@@ -723,7 +747,8 @@ hwconfig = {
                       damode=damodes.XFLASH,
                       dacode=0x6873,
                       name="MT6873",
-                      description="Dimensity 800 5G"),
+                      description="Dimensity 800 5G",
+        loader="mt6873_payload.bin"),
     0x959: chipconfig(  # var1
         # watchdog
         # uart
@@ -751,7 +776,8 @@ hwconfig = {
         blacklist=[(0x102848, 0x0)],
         damode=damodes.XFLASH,
         dacode=0x6885,
-        name="MT6885"),
+        name="MT6885",
+        loader="mt6885_payload.bin"),
     0x950: chipconfig(  # var1
         # watchdog
         # uart
@@ -816,7 +842,8 @@ hwconfig = {
                        blacklist=[(0x102870, 0x0)],
                        damode=damodes.DEFAULT,  #
                        dacode=0x8127,
-                       name="MT8127/MT3367"),  # ford,austin,tank #mhmm wdt, nochmal checken
+                       name="MT8127/MT3367",
+        loader="mt8127_payload.bin"),  # ford,austin,tank #mhmm wdt, nochmal checken
     0x8135: chipconfig(  # var1
         watchdog=0x10000000,
         # uart
@@ -843,8 +870,9 @@ hwconfig = {
                        blacklist=[(0x102868, 0x0), (0x001072DC, 0x0)],
                        damode=damodes.DEFAULT,  #
                        dacode=0x8163,
-                       name="MT8163"),  # douglas, karnak
-    0x8167: chipconfig(  # var1
+                       name="MT8163",
+        loader="mt8163_payload.bin"),  # douglas, karnak
+    0x8167: chipconfig(var1=0xCC,
         watchdog=0x10007000,
         uart=0x11005000,
         brom_payload_addr=0x100A00,
@@ -857,7 +885,8 @@ hwconfig = {
         blacklist=[(0x102968,0x0)],
         damode=damodes.XFLASH,
         dacode=0x8167,
-        name="MT8167/MT8516/MT8362"),
+        name="MT8167/MT8516/MT8362",
+        loader="mt8167_payload.bin"),
     0x8168: chipconfig(  # var1
         watchdog=0x10007000,
         uart=0x11002000,
@@ -871,7 +900,7 @@ hwconfig = {
         damode=damodes.XFLASH,
         dacode=0x8168,
         name="MT8168"),
-    0x8172: chipconfig(var1=0xA,  # todo
+    0x8172: chipconfig(var1=0xA,
                        watchdog=0x10007000,
                        uart=0x11002000,
                        brom_payload_addr=0x120A00,
@@ -883,7 +912,8 @@ hwconfig = {
                        blacklist=[(0x122774, 0x0)],
                        damode=damodes.DEFAULT,  #
                        dacode=0x8173,
-                       name="MT8173"),  # sloane, suez
+                       name="MT8173",
+        loader="mt8173_payload.bin"),  # sloane, suez
     0x8176: chipconfig(  # var1
         watchdog=0x10212c00,
         # uart
@@ -962,7 +992,8 @@ hwconfig = {
                        blacklist=[(0x103048, 0x0)],
                        damode=damodes.XFLASH,
                        dacode=0x8695,
-                       name="MT8695"),
+                       name="MT8695",
+        loader="mt8695_payload.bin"),
     0x908: chipconfig(  # var1
         # watchdog
         # uart
@@ -998,6 +1029,7 @@ hwconfig = {
 # G95
 # G80 (vivo y20g)
 # G70 (Infinix Hot 10)
+
 
 class Mtk_Config(metaclass=LogBase):
     def __init__(self, loglevel=logging.INFO):

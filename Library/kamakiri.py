@@ -2,31 +2,18 @@
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
 import logging
-import os
 from struct import pack, unpack
-from Library.utils import LogBase, print_progress, revdword
+from Library.utils import LogBase, print_progress, revdword, logsetup
 from Library.usblib import usb
 
 
 class Kamakiri(metaclass=LogBase):
     def __init__(self, mtk, loglevel=logging.INFO):
-        self.__logger = self.__logger
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.lasterror = ""
         self.mtk = mtk
         self.chipconfig = self.mtk.config.chipconfig
         self.var1 = self.chipconfig.var1
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
     def fix_payload(self, payload, da=True):
             payload = bytearray(payload)

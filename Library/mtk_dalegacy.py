@@ -6,10 +6,10 @@ import logging
 import os
 import time
 from struct import pack, unpack
-from Library.utils import LogBase, print_progress, read_object
+from Library.utils import LogBase, print_progress, read_object, logsetup
 from binascii import hexlify
 from Library.error import ErrorHandler
-from Library.daconfig import DaStorage, PartitionType
+from Library.daconfig import DaStorage, EMMC_PartitionType
 from Library.partition import Partition
 
 norinfo = [
@@ -244,7 +244,7 @@ class DALegacy(metaclass=LogBase):
         ENTER_RELAY_MODE_CMD = b"\xFF"
 
     def __init__(self, mtk, daconfig, loglevel=logging.INFO):
-        self.__logger = self.__logger
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.emmc = None
         self.nand = None
         self.nor = None
@@ -255,10 +255,6 @@ class DALegacy(metaclass=LogBase):
         self.daconfig = daconfig
         self.eh = ErrorHandler()
         self.config = self.mtk.config
-        self.info = self.__logger.info
-        self.debug = self.__logger.debug
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
         self.echo = self.mtk.port.echo
@@ -268,15 +264,6 @@ class DALegacy(metaclass=LogBase):
         self.sectorsize = self.daconfig.pagesize
         self.totalsectors = self.daconfig.flashsize
         self.partition = Partition(self.mtk, self.readflash, self.read_pmt, loglevel)
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
     def read_pmt(self):  # A5
         class GptEntries:
@@ -447,9 +434,11 @@ class DALegacy(metaclass=LogBase):
         buffer = self.usbread(toread)
         if toread == 4 and buffer == pack(">I", 0xBC3):
             buffer += self.usbread(4)
+            pdram=[b"",b""]
             draminfo = self.usbread(16)
+            pdram[0]=draminfo[:9]
             draminfo = draminfo[:4][::-1] + draminfo[4:8][::-1] + draminfo[8:12][::-1] + draminfo[12:16][::-1]
-            draminfo = draminfo[:9]
+            pdram[1] = draminfo[:9]
             self.info("DRAM config needed for : " + hexlify(draminfo).decode('utf-8'))
             if self.daconfig.preloader is None:
                 found = False
@@ -457,7 +446,7 @@ class DALegacy(metaclass=LogBase):
                     for file in files:
                         with open(os.path.join(root, file), "rb") as rf:
                             data = rf.read()
-                            if draminfo in data:
+                            if pdram[0] in data or pdram[1] in data:
                                 self.daconfig.preloader = os.path.join(root, file)
                                 print("Detected preloader: " + self.daconfig.preloader)
                                 found = True
@@ -700,21 +689,21 @@ class DALegacy(metaclass=LogBase):
 
     def sdmmc_write_data(self, addr, length, filename, parttype=None, display=True):
         if parttype is None or parttype == "user":
-            parttype = PartitionType.MTK_DA_EMMC_PART_USER
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
         elif parttype == "boot1":
-            parttype = PartitionType.MTK_DA_EMMC_PART_BOOT1
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT1
         elif parttype == "boot2":
-            parttype = PartitionType.MTK_DA_EMMC_PART_BOOT2
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT2
         elif parttype == "gp1":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP1
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP1
         elif parttype == "gp2":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP2
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP2
         elif parttype == "gp3":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP3
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP3
         elif parttype == "gp4":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP4
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP4
         elif parttype == "rpmb":
-            parttype = PartitionType.MTK_DA_EMMC_PART_RPMB
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB
 
         if self.daconfig.flashtype == "nor":
             storage = DaStorage.MTK_DA_STORAGE_NOR
@@ -820,21 +809,21 @@ class DALegacy(metaclass=LogBase):
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
         if parttype is None or parttype == "user" or parttype == "":
-            parttype = PartitionType.MTK_DA_EMMC_PART_USER
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
         elif parttype == "boot1":
-            parttype = PartitionType.MTK_DA_EMMC_PART_BOOT1
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT1
         elif parttype == "boot2":
-            parttype = PartitionType.MTK_DA_EMMC_PART_BOOT2
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT2
         elif parttype == "gp1":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP1
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP1
         elif parttype == "gp2":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP2
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP2
         elif parttype == "gp3":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP3
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP3
         elif parttype == "gp4":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP4
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP4
         elif parttype == "rpmb":
-            parttype = PartitionType.MTK_DA_EMMC_PART_RPMB
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB
         self.check_usb_cmd()
         packetsize = 0x0
         if self.daconfig.flashtype == "emmc":

@@ -5,7 +5,7 @@ import logging
 import os
 from binascii import hexlify
 from struct import unpack
-from Library.utils import LogBase, read_object
+from Library.utils import LogBase, read_object, logsetup
 
 
 class Storage:
@@ -24,7 +24,7 @@ class DaStorage:
     MTK_DA_STORAGE_UFS = 0x5
 
 
-class PartitionType:
+class EMMC_PartitionType:
     MTK_DA_EMMC_PART_BOOT1 = 1
     MTK_DA_EMMC_PART_BOOT2 = 2
     MTK_DA_EMMC_PART_RPMB = 3
@@ -34,6 +34,11 @@ class PartitionType:
     MTK_DA_EMMC_PART_GP4 = 7
     MTK_DA_EMMC_PART_USER = 8
 
+class UFS_PartitionType:
+    UFS_LU0 = 0
+    UFS_LU1 = 1
+    UFS_LU2 = 2
+    UFS_LU0_LU1 = 3
 
 class Memory:
     M_EMMC = 1
@@ -65,13 +70,9 @@ DA = [
 
 class DAconfig(metaclass=LogBase):
     def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.mtk = mtk
-        self.__logger = self.__logger
         self.config = self.mtk.config
-        self.info = self.__logger.info
-        self.debug = self.__logger.debug
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
         self.flashsize = 0
@@ -82,15 +83,6 @@ class DAconfig(metaclass=LogBase):
         self.dasetup = []
         self.loader = loader
         self.preloader = preloader
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
         if loader is None:
             loaders = []

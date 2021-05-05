@@ -79,6 +79,22 @@ class ColorFormatter(logging.Formatter):
         # now we can let standart formatting take care of the rest
         return super(ColorFormatter, self).format(new_record, *args, **kwargs)
 
+def logsetup(self, logger, loglevel):
+    self.info = logger.info
+    self.debug = logger.debug
+    self.error = logger.error
+    self.warning = logger.warning
+    if loglevel == logging.DEBUG:
+        logfilename = os.path.join("logs", "log.txt")
+        if os.path.exists(logfilename):
+            os.remove(logfilename)
+        fh = logging.FileHandler(logfilename)
+        logger.addHandler(fh)
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+    self.loglevel = loglevel
+    return logger
 
 class LogBase(type):
     debuglevel = logging.root.level
@@ -281,7 +297,6 @@ class PatchTools:
                 offsets.append(pre)
                 pre += 1
         return None
-
 
 def read_object(data: object, definition: object) -> object:
     """

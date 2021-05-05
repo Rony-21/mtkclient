@@ -1,8 +1,12 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
+import os
+import sys
+import logging
 from binascii import hexlify
-from Library.utils import *
+from struct import unpack
+from Library.utils import LogBase, logsetup, read_object
 
 
 class gpt(metaclass=LogBase):
@@ -120,6 +124,7 @@ class gpt(metaclass=LogBase):
 
     def __init__(self, num_part_entries=0, part_entry_size=0, part_entry_start_lba=0, loglevel=logging.INFO, *args,
                  **kwargs):
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.header = None
         self.sectorsize = 0
         self.partentries = []
@@ -127,22 +132,12 @@ class gpt(metaclass=LogBase):
         self.num_part_entries = num_part_entries
         self.part_entry_size = part_entry_size
         self.part_entry_start_lba = part_entry_start_lba
-        self.__logger = self.__logger
-        self.info = self.__logger.info
-        self.debug = self.__logger.debug
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         '''
         if num_part_entries is 0:
             self.gpt_header += [('num_part_entries', 'I'),]
             if part_entry_size is 0:
                 self.gpt_header += [('part_entry_size', 'I'),]
         '''
-        self.__logger.setLevel(loglevel)
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
 
     def parseheader(self, gptdata, sectorsize=512):
         return read_object(gptdata[sectorsize:sectorsize + 0x5C], self.gpt_header)
@@ -187,16 +182,16 @@ class gpt(metaclass=LogBase):
                 break
             partentry = read_object(data, self.gpt_partition)
             pa = partf()
-            guid1 = struct.unpack("<I", partentry["unique"][0:0x4])[0]
-            guid2 = struct.unpack("<H", partentry["unique"][0x4:0x6])[0]
-            guid3 = struct.unpack("<H", partentry["unique"][0x6:0x8])[0]
-            guid4 = struct.unpack("<H", partentry["unique"][0x8:0xA])[0]
+            guid1 = unpack("<I", partentry["unique"][0:0x4])[0]
+            guid2 = unpack("<H", partentry["unique"][0x4:0x6])[0]
+            guid3 = unpack("<H", partentry["unique"][0x6:0x8])[0]
+            guid4 = unpack("<H", partentry["unique"][0x8:0xA])[0]
             guid5 = hexlify(partentry["unique"][0xA:0x10]).decode('utf-8')
             pa.unique = "{:08x}-{:04x}-{:04x}-{:04x}-{}".format(guid1, guid2, guid3, guid4, guid5)
             pa.sector = partentry["first_lba"]
             pa.sectors = partentry["last_lba"] - partentry["first_lba"] + 1
             pa.flags = partentry["flags"]
-            rtype = int(struct.unpack("<I", partentry["type"][0:0x4])[0])
+            rtype = int(unpack("<I", partentry["type"][0:0x4])[0])
             try:
                 pa.type = self.efi_type(rtype).name
             except Exception as err:

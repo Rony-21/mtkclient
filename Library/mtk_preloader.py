@@ -3,7 +3,7 @@
 # (c) B.Kerler 2018-2021 MIT License
 import os
 import logging
-from Library.utils import LogBase
+from Library.utils import LogBase, logsetup
 from enum import Enum
 from struct import unpack, pack
 from binascii import hexlify
@@ -96,13 +96,10 @@ class Preloader(metaclass=LogBase):
 
     def __init__(self, mtk, loglevel=logging.INFO):
         self.mtk = mtk
-        self.__logger = self.__logger
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.eh = ErrorHandler()
         self.gcpu = None
         self.config = mtk.config
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         self.display = True
         self.rbyte = self.mtk.port.rbyte
         self.rword = self.mtk.port.rword
@@ -111,16 +108,6 @@ class Preloader(metaclass=LogBase):
         self.usbwrite = self.mtk.port.usbwrite
         self.echo = self.mtk.port.echo
         self.sendcmd = self.mtk.port.mtk_cmd
-
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
     def init(self, args, readsocid=False, maxtries=None):
         self.info("Status: Waiting for PreLoader VCOM, please connect mobile")

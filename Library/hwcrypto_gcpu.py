@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
-import os
+
 import hmac
 import hashlib
 import logging
 from struct import pack, unpack
-from Library.utils import LogBase
+from Library.utils import LogBase, logsetup
 from binascii import hexlify
 
 CSS_DEC_DK = 0x00  # CSS Disk Key Decryption
@@ -187,24 +187,12 @@ def xor_data(a: bytearray, b: bytearray, length=None):
 
 class GCpu(metaclass=LogBase):
     def __init__(self, setup, loglevel=logging.INFO):
-        self.__logger = self.__logger
-        self.info = self.__logger.info
-        self.error = self.__logger.error
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.read32 = setup.read32
         self.write32 = setup.write32
         self.reg = GCpuReg(setup)
         self.gcpu_base = setup.gcpu_base
         self.hwcode = setup.hwcode
-        self.info = self.__logger.info
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
     def reset(self):
         # Reset HW

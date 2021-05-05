@@ -2,36 +2,29 @@
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
 import logging
-import os
-from Library.utils import LogBase
+from Library.utils import LogBase, logsetup
 from Library.gpt import gpt
 
 
 class Partition(metaclass=LogBase):
     def __init__(self, mtk, readflash, read_pmt, loglevel=logging.INFO):
         self.mtk = mtk
-        self.__logger = self.__logger
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.config = self.mtk.config
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
         self.readflash = readflash
         self.read_pmt = read_pmt
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
 
     def get_gpt(self, gpt_num_part_entries, gpt_part_entry_size, gpt_part_entry_start_lba, parttype="user"):
         data = self.readflash(addr=0, length=2 * self.config.pagesize, filename="", parttype=parttype, display=False)
         if data[:9] == b"EMMC_BOOT" and self.read_pmt:
+            partdata, partentries = self.read_pmt()
+            if partdata == b"":
+                return None, None
+            else:
+                return partdata, partentries
+        elif data[:8] == b"UFS_BOOT" and self.read_pmt:
             partdata, partentries = self.read_pmt()
             if partdata == b"":
                 return None, None

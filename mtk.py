@@ -67,20 +67,25 @@ Options:
     --preloader=filename               Set the preloader filename for dram config
     --skipwdt                          Skip wdt init
     --verifystage2                     Verify if stage2 data has been written correctly
-    --parttype=parttype                Partition type (user,boot1,boot2,gp1,gp2,gp3,gp4,rpmb)
+    --parttype=parttype                Partition type
+                                        EMMC: [user,boot1,boot2,gp1,gp2,gp3,gp4,rpmb]
+                                        UFS: [lu0,lu1,lu2,lu0_lu1]
     --filename=filename                Optional filename
     --crash                            Enforce crash if device is in pl mode to enter brom mode
     --socid                            Read Soc ID
 """
 
+import os
+import sys
+import logging
+from struct import unpack, pack
 from docopt import docopt
-
 from config.usb_ids import default_ids
 from Library.pltools import PLTools
 from Library.mtk_preloader import Preloader
 from Library.mtk_daloader import DAloader
 from Library.Port import Port
-from Library.utils import *
+from Library.utils import LogBase, logsetup, getint
 from config.brom_config import Mtk_Config
 
 import time
@@ -96,21 +101,9 @@ def split_by_n(seq, unit_count):
 
 class Mtk(metaclass=LogBase):
     def __init__(self, args, loader, loglevel=logging.INFO, vid=-1, pid=-1, interface=0):
-        self.__logger = self.__logger
         self.config = Mtk_Config(loglevel=loglevel)
         self.args = args
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
+        self.__logger = logsetup(self, self.__logger, loglevel)
         da_address = self.args["--da_addr"]
         if da_address is not None:
             self.config.chipconfig.da_payload_addr = getint(da_address)
@@ -310,42 +303,9 @@ class Main(metaclass=LogBase):
                     self.info(f"Sent da to {hex(daaddr)}, length {hex(len(dadata))}")
                     if mtk.preloader.jump_da(daaddr):
                         self.info(f"Jumped to {hex(daaddr)}.")
-                        # time.sleep(2)
-                        # mtk = Mtk(loader=args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
-                        # interface=interface,
-                        # args=args)
                         ack = unpack(">I", mtk.port.usbread(4))[0]
                         if ack == 0xB1B2B3B4:
                             self.info("Successfully loaded stage2")
-                            """
-                            # emmc_switch(1)
-                            mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                            mtk.port.usbwrite(pack(">I", 0x1002))
-                            mtk.port.usbwrite(pack(">I", 0x0))
-                            # stat=mtk.port.usbread(4)
-
-                            # kick-wdt
-                            #mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                            #.port.usbwrite(pack(">I", 0x3001))
-
-                            # emmc_read(0)
-                            mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                            mtk.port.usbwrite(pack(">I", 0x1000))
-                            mtk.port.usbwrite(pack(">I", 0x1))
-                            #time.sleep(2)
-                            data = mtk.port.usbread(0x200,0x200)
-
-                            with open("rpmb", "wb") as wf:
-                                for addr in range(0, 0xFFFF):
-                                    mtk.port.usbwrite(pack(">I", 0xf00dd00d))
-                                    mtk.port.usbwrite(pack(">I", 0x2000))
-                                    mtk.port.usbwrite(pack(">I", addr))
-                                    tmp = mtk.port.usbread(0x100, 0x100)
-                                    if len(tmp) != 0x100:
-                                        print("Error on getting data")
-                                    wf.write(tmp)
-                            print("Done")
-                            """
                     else:
                         self.error("Error on jumping to pl")
                         return
@@ -426,7 +386,7 @@ class Main(metaclass=LogBase):
             self.close()
         elif self.args["stage"]:
             if self.args["--filename"] is None:
-                stage1file = "payloads/generic_stage1_payload.bin"
+                stage1file = os.path.join("payloads","generic_stage1_payload.bin")
             else:
                 stage1file = self.args["--filename"]
             if not os.path.exists(stage1file):
@@ -533,7 +493,10 @@ class Main(metaclass=LogBase):
                 plt = PLTools(mtk, self.__logger.level)
                 payloadfile = self.args["--payload"]
                 if payloadfile is None:
-                    payloadfile = "payloads/generic_patcher_payload.bin"
+                    if mtk.config.chipconfig.loader is not None:
+                        payloadfile = os.path.join("payloads",mtk.config.chipconfig.loader)
+                    else:
+                        payloadfile = os.path.join("payloads","generic_patcher_payload.bin")
                 if self.args["--ptype"] == "amonet":
                     plt.runpayload(filename=payloadfile, ptype="amonet")
                 elif self.args["--ptype"] == "kamakiri":
@@ -555,7 +518,10 @@ class Main(metaclass=LogBase):
                     plt = PLTools(mtk, self.__logger.level)
                     payloadfile = self.args["--payload"]
                     if payloadfile is None:
-                        payloadfile = "payloads/generic_patcher_payload.bin"
+                        if mtk.config.chipconfig.loader is not None:
+                            payloadfile = os.path.join("payloads",mtk.config.chipconfig.loader)
+                        else:
+                            payloadfile = os.path.join("payloads", "generic_patcher_payload.bin")
                     if plt.runpayload(filename=payloadfile, ptype="kamakiri"):
                         mtk.port.close()
                         time.sleep(0.1)
@@ -666,7 +632,7 @@ class Main(metaclass=LogBase):
                         continue
                     filename = os.path.join(storedir, partitionname + ".bin")
                     self.info(f"Dumping partition {str(partition.name)} with sector count {str(partition.sectors)} " +
-                              "as {filename}.")
+                              f"as {filename}.")
                     mtk.daloader.readflash(addr=partition.sector * mtk.daloader.daconfig.pagesize,
                                            length=partition.sectors * mtk.daconfig.pagesize, filename=filename,
                                            parttype=parttype)
@@ -675,7 +641,17 @@ class Main(metaclass=LogBase):
         elif self.args["rf"]:
             filename = self.args["<filename>"]
             parttype = self.args["--parttype"]
-            length = mtk.daloader.daconfig.flashsize
+            if mtk.daloader.daconfig.flashtype=="ufs":
+                if parttype=="lu0":
+                    length = mtk.daloader.daconfig.flashsize[0]
+                elif parttype=="lu1":
+                    length = mtk.daloader.daconfig.flashsize[1]
+                elif parttype=="lu2":
+                    length = mtk.daloader.daconfig.flashsize[2]
+                else:
+                    length = mtk.daloader.daconfig.flashsize[0]
+            else:
+                length = mtk.daloader.daconfig.flashsize
             print(f"Dumping sector 0 with flash size {hex(length)} as {filename}.")
             mtk.daloader.readflash(addr=0, length=length, filename=filename, parttype=parttype)
             print(f"Dumped sector 0 with flash size {hex(length)} as {filename}.")
@@ -712,7 +688,7 @@ class Main(metaclass=LogBase):
                                                           length=0x4000, filename="", parttype="user", display=False)
                         if data == b"":
                             continue
-                        val = struct.unpack("<I", data[:4])[0]
+                        val = unpack("<I", data[:4])[0]
                         if (val & 0xFFFFFFF0) == 0xD0B5B1C0:
                             with open(filename, "wb") as wf:
                                 wf.write(data)

@@ -5,7 +5,7 @@ import os
 import logging
 from binascii import hexlify
 from struct import pack, unpack
-from Library.utils import LogBase, print_progress
+from Library.utils import LogBase, print_progress, logsetup
 from Library.hwcrypto import crypto_setup, hwcrypto
 from Library.kamakiri import Kamakiri
 from Library.Port import Port
@@ -13,12 +13,8 @@ from Library.Port import Port
 
 class PLTools(metaclass=LogBase):
     def __init__(self, mtk, loglevel=logging.INFO):
+        self.__logger = logsetup(self, self.__logger, loglevel)
         self.mtk = mtk
-        self.__logger = self.__logger
-        self.info = self.__logger.info
-        self.debug = self.__logger.debug
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
         self.chipconfig = self.mtk.config.chipconfig
         self.config = self.mtk.config
         self.usbwrite = self.mtk.port.usbwrite
@@ -62,7 +58,7 @@ class PLTools(metaclass=LogBase):
                 payload = rf.read()
                 self.info(f"Loading payload from {filename}, {hex(len(payload))} bytes")
         except FileNotFoundError:
-            self.info("Couldn't open {filename} for reading.")
+            self.info(f"Couldn't open {filename} for reading.")
             return False
 
         if addr is None:
