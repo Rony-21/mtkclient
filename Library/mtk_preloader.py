@@ -206,10 +206,10 @@ class Preloader(metaclass=LogBase):
             if self.echo(pack(">I", addr)):
                 ack = self.echo(pack(">I", dwords))
                 status = self.rword()
-                if ack and status < 3:
+                if ack and status <= 0xFF:
                     result = self.rdword(dwords)
                     status2 = unpack(">H", self.usbread(2))[0]
-                    if status2 == 0:
+                    if status2 <= 0xFF:
                         return result
                 else:
                     self.error(self.eh.status(status))
@@ -222,14 +222,15 @@ class Preloader(metaclass=LogBase):
             if self.echo(pack(">I", addr)):
                 ack = self.echo(pack(">I", len(dwords)))
                 status = self.rword()
-                if status > 3:
+                if status > 0xFF:
                     self.error(f"Error on da_write32, addr {hex(addr)}, {self.eh.status(status)}")
-                if ack and status < 3:
+                    return False
+                if ack and status <= 3:
                     for dword in dwords:
                         if not self.echo(pack(">I", dword)):
                             break
                     status2 = self.rword()
-                    if status2 < 3:
+                    if status2 <= 0xFF:
                         return True
                     else:
                         self.error(f"Error on da_write32, addr {hex(addr)}, {self.eh.status(status2)}")
