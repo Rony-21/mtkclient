@@ -383,8 +383,11 @@ class DAXFlash(metaclass=LogBase):
 
             sram = RamInfo()
             dram = RamInfo()
-            sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<IIIIII",
-                                                                                                      resp[:24])
+            if len(resp) == 24:
+                sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<IIIIII", resp)
+            elif len(resp) == 48:
+                sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<QQQQQQ",resp)
+                                                                                                     
             return sram, dram
         return None, None
 
