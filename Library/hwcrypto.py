@@ -64,7 +64,7 @@ class hwcrypto(metaclass=LogBase):
             return bytearray()
 
     def disable_hypervisor(self):
-        self.write32(self.read32(0x1021a060)|0x1)
+        self.write32(0x1021a060,self.read32(0x1021a060)|0x1)
 
     def disable_range_blacklist(self, btype, refreshcache):
         if btype == "gcpu":

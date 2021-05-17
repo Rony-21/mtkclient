@@ -183,21 +183,42 @@ class Preloader(metaclass=LogBase):
             self.info("HW code:\t\t\t" + hex(self.config.hwcode))
             with open(os.path.join("logs", "hwcode"), "w") as wf:
                 wf.write(hex(self.config.hwcode))
-        meid = self.get_meid()
-        if len(meid) >= 16:
-            with open(os.path.join("logs", "meid"), "wb") as wf:
-                wf.write(hexlify(meid))
-        if self.display:
-            if meid != b"":
-                self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
-        if readsocid:
-            socid = self.get_socid()
-            if len(socid) >= 16:
-                with open(os.path.join("logs", "socid"), "wb") as wf:
-                    wf.write(hexlify(socid))
+        blver=self.get_blver()
+        if blver!=-2:
+            caps=self.get_plcap()
+            if caps[0] & self.Cap.PL_CAP0_MEID_SUPPORT.value==self.Cap.PL_CAP0_MEID_SUPPORT.value:
+                meid = self.get_meid()
+                if len(meid) >= 16:
+                    with open(os.path.join("logs", "meid"), "wb") as wf:
+                        wf.write(hexlify(meid))
+                if self.display:
+                    if meid != b"":
+                        self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
+            if caps[0] & self.Cap.PL_CAP0_SOCID_SUPPORT.value == self.Cap.PL_CAP0_SOCID_SUPPORT.value:
+                socid = self.get_socid()
+                if len(socid) >= 16:
+                    with open(os.path.join("logs", "socid"), "wb") as wf:
+                        wf.write(hexlify(socid))
+                if self.display:
+                    if socid != b"":
+                        self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
+        else:
+            meid = self.get_meid()
+            if len(meid) >= 16:
+                with open(os.path.join("logs", "meid"), "wb") as wf:
+                    wf.write(hexlify(meid))
             if self.display:
-                if socid != b"":
-                    self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
+                if meid != b"":
+                    self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
+            if readsocid:
+                socid = self.get_socid()
+                if len(socid) >= 16:
+                    with open(os.path.join("logs", "socid"), "wb") as wf:
+                        wf.write(hexlify(socid))
+                if self.display:
+                    if socid != b"":
+                        self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
+
         return True
 
     def read32(self, addr, dwords=1) -> list:
@@ -282,9 +303,12 @@ class Preloader(metaclass=LogBase):
             res = self.usbread(1)
             if res == self.Cmd.GET_BL_VER.value:
                 # We are in boot rom ...
-                return 1
+                self.info("BROM mode detected.")
+                self.mtk.config.blver = -2
+                return -2
             else:
-                return unpack("B", res)[0]
+                self.mtk.config.blver=unpack("B", res)[0]
+                return self.mtk.config.blver
         return -1
 
     def get_target_config(self, display=True):
@@ -421,6 +445,11 @@ class Preloader(metaclass=LogBase):
     def get_hwcode(self):
         res = self.sendcmd(self.Cmd.GET_HW_CODE.value, 4)  # 0xFD
         return unpack(">HH", res)
+
+    def get_plcap(self):
+        res = self.sendcmd(self.Cmd.GET_PL_CAP.value, 8)  # 0xFB
+        self.mtk.config.plcap = unpack(">II", res)
+        return self.mtk.config.plcap
 
     def get_hw_sw_ver(self):
         res = self.sendcmd(self.Cmd.GET_HW_SW_VER.value, 8)  # 0xFC

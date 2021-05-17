@@ -386,7 +386,7 @@ class Main(metaclass=LogBase):
             self.close()
         elif self.args["stage"]:
             if self.args["--filename"] is None:
-                stage1file = os.path.join("payloads","generic_stage1_payload.bin")
+                stage1file = "payloads/generic_stage1_payload.bin"
             else:
                 stage1file = self.args["--filename"]
             if not os.path.exists(stage1file):
@@ -493,10 +493,7 @@ class Main(metaclass=LogBase):
                 plt = PLTools(mtk, self.__logger.level)
                 payloadfile = self.args["--payload"]
                 if payloadfile is None:
-                    if mtk.config.chipconfig.loader is not None:
-                        payloadfile = os.path.join("payloads",mtk.config.chipconfig.loader)
-                    else:
-                        payloadfile = os.path.join("payloads","generic_patcher_payload.bin")
+                    payloadfile = "payloads/generic_patcher_payload.bin"
                 if self.args["--ptype"] == "amonet":
                     plt.runpayload(filename=payloadfile, ptype="amonet")
                 elif self.args["--ptype"] == "kamakiri":
@@ -518,10 +515,7 @@ class Main(metaclass=LogBase):
                     plt = PLTools(mtk, self.__logger.level)
                     payloadfile = self.args["--payload"]
                     if payloadfile is None:
-                        if mtk.config.chipconfig.loader is not None:
-                            payloadfile = os.path.join("payloads",mtk.config.chipconfig.loader)
-                        else:
-                            payloadfile = os.path.join("payloads", "generic_patcher_payload.bin")
+                        payloadfile = "payloads/generic_patcher_payload.bin"
                     if plt.runpayload(filename=payloadfile, ptype="kamakiri"):
                         mtk.port.close()
                         time.sleep(0.1)

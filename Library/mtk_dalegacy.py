@@ -251,7 +251,6 @@ class DALegacy(metaclass=LogBase):
         self.sdc = None
         self.flashconfig = None
         self.mtk = mtk
-        self.blver = 1
         self.daconfig = daconfig
         self.eh = ErrorHandler()
         self.config = self.mtk.config
@@ -529,11 +528,11 @@ class DALegacy(metaclass=LogBase):
             self.error("No valid da loader found... aborting.")
             return False
         loader = self.daconfig.loader
-        if self.config.blver == 1:
+        if self.config.blver == -2:
             self.info("Uploading stage 1...")
             with open(loader, 'rb') as bootldr:
                 # stage 1
-                stage = self.config.blver + 1
+                stage = 2
                 offset = self.daconfig.da[stage]["m_buf"]
                 size = self.daconfig.da[stage]["m_len"]
                 address = self.daconfig.da[stage]["m_start_addr"]
@@ -577,12 +576,12 @@ class DALegacy(metaclass=LogBase):
                 self.debug("ACK: " + hexlify(ackval).decode('utf-8'))
 
                 self.usbwrite(self.Cmd.GET_PROJECT_ID_CMD)
-                self.usbwrite(pack("B", self.config.blver))
+                self.usbwrite(pack("B", 1))
 
                 self.set_stage2_config(self.config.hwcode)
                 self.info("Uploading stage 2...")
                 # stage 2
-                if self.brom_send(self.daconfig.da, bootldr, self.config.blver + 2):
+                if self.brom_send(self.daconfig.da, bootldr, 3):
                     if self.read_flash_info():
                         if self.daconfig.flashtype == "nand":
                             self.daconfig.flashsize = self.nand["m_nand_flash_size"]
@@ -596,7 +595,6 @@ class DALegacy(metaclass=LogBase):
                 return False
 
     def upload_da(self):
-        self.config.blver = self.mtk.preloader.get_blver()
         self.info("Uploading da...")
         if self.upload():
             if self.emmc == "nor":

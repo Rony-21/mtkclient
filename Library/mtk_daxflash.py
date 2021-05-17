@@ -111,7 +111,6 @@ class DAXFlash(metaclass=LogBase):
         self.chipid = None
         self.randomid = None
         self.__logger = self.__logger
-        self.blver = 1
         self.eh = ErrorHandler()
         self.config = self.mtk.config
         self.usbwrite = self.mtk.port.usbwrite
@@ -195,7 +194,8 @@ class DAXFlash(metaclass=LogBase):
                             return self.recv()
                         else:
                             return self.send_param(param)
-        self.error("Error on sending dev ctrl 0x%X, status 0x%X" % (cmd, status[0]))
+        if status[0]!=0xC0010004:
+            self.error("Error on sending dev ctrl 0x%X, status 0x%X" % (cmd, status[0]))
         return b""
 
     def set_reset_key(self, reset_key=0x68):
@@ -739,40 +739,38 @@ class DAXFlash(metaclass=LogBase):
             self.error("No valid da loader found... aborting.")
             return False
         loader = self.daconfig.loader
-        self.config.blver = 1
-        if self.config.blver == 1:
-            self.info("Uploading stage 1...")
-            with open(loader, 'rb') as bootldr:
-                # stage 1
-                stage = self.config.blver + 1
-                offset = self.daconfig.da[stage]["m_buf"]
-                size = self.daconfig.da[stage]["m_len"]
-                address = self.daconfig.da[stage]["m_start_addr"]
-                sig_len = self.daconfig.da[stage]["m_sig_len"]
-                bootldr.seek(offset)
-                dadata = bootldr.read(size)
-                if self.mtk.preloader.send_da(address, size, sig_len, dadata):
-                    self.info("Successfully uploaded stage 1, jumping ..")
-                    if self.mtk.preloader.jump_da(address):
-                        time.sleep(0.5)
-                        sync = self.usbread(1)
-                        if sync != b"\xC0":
-                            self.error("Error on DA sync")
-                            return False
-                        else:
-                            self.sync()
-                            self.setup_env()
-                            self.setup_hw_init()
-                            res = self.recv()
-                            if res == pack("<I", self.Cmd.SYNC_SIGNAL):
-                                self.info("Successfully received DA sync")
-                                return True
-                            else:
-                                self.error("Error on jumping to DA: " + hexlify(res).decode('utf-8'))
+        self.info("Uploading stage 1...")
+        with open(loader, 'rb') as bootldr:
+            # stage 1
+            stage = 2
+            offset = self.daconfig.da[stage]["m_buf"]
+            size = self.daconfig.da[stage]["m_len"]
+            address = self.daconfig.da[stage]["m_start_addr"]
+            sig_len = self.daconfig.da[stage]["m_sig_len"]
+            bootldr.seek(offset)
+            dadata = bootldr.read(size)
+            if self.mtk.preloader.send_da(address, size, sig_len, dadata):
+                self.info("Successfully uploaded stage 1, jumping ..")
+                if self.mtk.preloader.jump_da(address):
+                    time.sleep(0.5)
+                    sync = self.usbread(1)
+                    if sync != b"\xC0":
+                        self.error("Error on DA sync")
+                        return False
                     else:
-                        self.error("Error on jumping to DA.")
+                        self.sync()
+                        self.setup_env()
+                        self.setup_hw_init()
+                        res = self.recv()
+                        if res == pack("<I", self.Cmd.SYNC_SIGNAL):
+                            self.info("Successfully received DA sync")
+                            return True
+                        else:
+                            self.error("Error on jumping to DA: " + hexlify(res).decode('utf-8'))
                 else:
-                    self.error("Error on sending DA.")
+                    self.error("Error on jumping to DA.")
+            else:
+                self.error("Error on sending DA.")
         return False
 
     def upload_da(self):
@@ -782,9 +780,9 @@ class DAXFlash(metaclass=LogBase):
             self.set_battery_opt(0x2)
             self.set_checksum_level(0x0)
             connagent = self.get_connection_agent()
-            blver = None
+            stage = None
             if connagent == b"brom":
-                blver = 2
+                stage = 2
                 if self.daconfig.preloader is not None:
                     if os.path.exists(self.daconfig.preloader):
                         with open(self.daconfig.preloader, "rb") as rf:
@@ -806,11 +804,11 @@ class DAXFlash(metaclass=LogBase):
                 else:
                     self.warning("No preloader given. Operation may fail due to missing dram setup.")
             elif connagent == b"preloader":
-                blver = 2
-            if blver == 2:
+                stage = 2
+            if stage == 2:
                 self.info("Uploading stage 2...")
                 with open(self.daconfig.loader, 'rb') as bootldr:
-                    stage = blver + 1
+                    stage = stage + 1
                     offset = self.daconfig.da[stage]["m_buf"]
                     size = self.daconfig.da[stage]["m_len"] - self.daconfig.da[stage]["m_sig_len"]
                     address = self.daconfig.da[stage]["m_start_addr"]  # at_address

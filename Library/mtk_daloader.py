@@ -10,12 +10,10 @@ from Library.mtk_dalegacy import DALegacy
 from Library.mtk_daxflash import DAXFlash
 from config.brom_config import damodes
 
-
 class DAloader(metaclass=LogBase):
     def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
         self.__logger = logsetup(self, self.__logger, loglevel)
         self.mtk = mtk
-        self.blver = 1
         self.loader = loader
         self.preloader = preloader
         self.loglevel = loglevel
@@ -31,10 +29,17 @@ class DAloader(metaclass=LogBase):
         self.da = None
 
     def set_da(self):
-        if self.config.chipconfig.damode == damodes.DEFAULT:
-            self.da = DALegacy(self.mtk, self.daconfig, self.loglevel)
-        else:
+        xflash = False
+        if self.mtk.config.plcap is not None:
+            PL_CAP0_XFLASH_SUPPORT = (0x1 << 0)
+            if self.mtk.config.plcap[0]&PL_CAP0_XFLASH_SUPPORT==PL_CAP0_XFLASH_SUPPORT and self.mtk.config.blver>1:
+                xflash=True
+        if self.mtk.config.chipconfig.damode==1:
+            xflash=True
+        if xflash:
             self.da = DAXFlash(self.mtk, self.daconfig, self.loglevel)
+        else:
+            self.da = DALegacy(self.mtk, self.daconfig, self.loglevel)
 
     def detect_partition(self, arguments, partitionname, parttype=None):
         fpartitions = []
