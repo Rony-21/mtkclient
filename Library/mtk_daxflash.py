@@ -353,7 +353,12 @@ class DAXFlash(metaclass=LogBase):
                               ne.sys_slc_percent, ne.usr_slc_percent, ne.phy_max_size, 0x0)
                 self.send_param(param)
                 status = self.status()
-                if status == 0x0:
+                while status == 0x40040004: #STATUS_CONTINUE
+                    #it receive some data maybe sleep in ms time, 
+                    time.sleep(self.status() / 1000.0)
+                    self.ack()
+                    status = self.status()
+                if status == 0x40040005: #STATUS_COMPLETE
                     return True
         return False
 
