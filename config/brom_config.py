@@ -193,6 +193,7 @@ hwconfig = {
         watchdog=0x10007400,
         # uart
         da_payload_addr=0x2008000,
+        pl_payload_addr=0x801E0000,
         # gcpu_base
         # sej_base
         # no dxcc
@@ -207,6 +208,7 @@ hwconfig = {
                        uart=0x11005000,
                        brom_payload_addr=0x10036A0,
                        da_payload_addr=0x2007000,
+                       pl_payload_addr=0x801E0000,
                        # gcpu_base
                        # sej_base
                        # no dxcc
@@ -263,6 +265,7 @@ hwconfig = {
         uart=0x11005000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x80001000,
         # no gcpu_base
         sej_base=0x1000A000,
         # dxcc_base
@@ -308,6 +311,7 @@ hwconfig = {
         uart=0x11006000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x80001000,
         gcpu_base=0x10210000,
         sej_base=0x1000A000,
         # no dxcc
@@ -321,6 +325,7 @@ hwconfig = {
         # uart
         # brom_payload_addr
         da_payload_addr=0x110000,
+        pl_payload_addr=0x80001000,
         # gcpu_base
         # sej_base
         # dxcc_base
@@ -330,17 +335,17 @@ hwconfig = {
         dacode=0x6592,
         damode=damodes.DEFAULT,  #
         name="MT6592"),
-    0x6595: chipconfig(  # var1
+    0x6595: chipconfig(var1=0xA,
         watchdog=0x10007000,
-        # uart
-        # brom_payload_addr
+        uart=0x11002000,
+        brom_payload_addr=0x100A00,
         da_payload_addr=0x110000,
         # gcpu_base
         sej_base=0x1000A000,
         # dxcc_base
         # cqdma_base
         ap_dma_mem=0x11000000 + 0x1A0,
-        # blacklist
+        blacklist=[(0x00102768, 0x0)],
         dacode=0x6595,
         damode=damodes.DEFAULT,  #
         name="MT6595"),
@@ -398,7 +403,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x110000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40001000,
         gcpu_base=0x10210000,
         sej_base=0x1000A000,  # hacc
         # no dxcc
@@ -497,6 +502,7 @@ hwconfig = {
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
+                      pl_payload_addr=0x40200000,
                       gcpu_base=0x10210000,
                       sej_base=0x1000A000,
                       cqdma_base=0x10212C00,
@@ -540,6 +546,7 @@ hwconfig = {
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
+                      pl_payload_addr=0x40200000,
                       gcpu_base=0x10050000,
                       sej_base=0x1000A000,  # hacc
                       dxcc_base=0x10210000,
@@ -589,6 +596,7 @@ hwconfig = {
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
+                      pl_payload_addr=0x40200000,
                       gcpu_base=0x10050000,
                       sej_base=0x1000A000,  # hacc
                       dxcc_base=0x10210000,
@@ -605,6 +613,7 @@ hwconfig = {
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
+                      pl_payload_addr=0x40200000,
                       gcpu_base=0x10050000,
                       sej_base=0x1000A000,  # hacc
                       dxcc_base=0x10210000,  # dxcc_sec
@@ -632,6 +641,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
         gcpu_base=0x10050000,
         sej_base=0x1000a000,  # hacc
         dxcc_base=0x10210000,
@@ -648,6 +658,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
         gcpu_base=0x10050000,
         sej_base=0x1000A000,  # hacc
         dxcc_base=0x10210000,
@@ -665,6 +676,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x110000,
+        pl_payload_addr=0x40200000,
         gcpu_base=0x10210000,
         sej_base=0x1000A000,  # hacc
         # no dxcc
@@ -835,6 +847,7 @@ hwconfig = {
                        uart=0x11002000,
                        brom_payload_addr=0x100A00,
                        da_payload_addr=0x201000,
+                       pl_payload_addr=0x80001000,
                        gcpu_base=0x11010000,
                        sej_base=0x1000A000,
                        # no cqdma_base
@@ -862,6 +875,7 @@ hwconfig = {
                        uart=0x11002000,
                        brom_payload_addr=0x100A00,
                        da_payload_addr=0x201000,
+                       pl_payload_addr=0x40001000,
                        gcpu_base=0x10210000,
                        sej_base=0x1000A000,
                        # no dxcc
@@ -877,6 +891,7 @@ hwconfig = {
         uart=0x11005000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40001000,
         gcpu_base=0x1020D000,
         sej_base=0x1000A000,
         # no dxcc
@@ -905,6 +920,7 @@ hwconfig = {
                        uart=0x11002000,
                        brom_payload_addr=0x120A00,
                        da_payload_addr=0xc0000,
+                       pl_payload_addr=0x40200000,
                        # gcpu_base
                        # sej_base
                        # cqdma_base

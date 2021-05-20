@@ -42,6 +42,8 @@ class hwcrypto(metaclass=LogBase):
             else:
                 if mode == "cbc":
                     return self.sej.hw_aes128_cbc_encrypt(buf=data, encrypt=False)
+            if mode=="rpmb":
+                return self.sej.generate_rpmb(meid=data)
         elif btype == "gcpu":
             addr = self.setup.da_payload_addr
             if mode == "ebc":

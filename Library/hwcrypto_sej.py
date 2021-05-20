@@ -245,3 +245,16 @@ class sej(metaclass=LogBase):
         self.info("HACC terminate")
         self.SEJ_V3_Terminate()
         return buf2
+
+    def generate_rpmb(self,meid,derivedlen=32):
+        self.info("HACC init")
+        self.SEJ_V3_Init(True)
+        self.info("HACC run")
+
+        buf2 = b""
+        for i in range(derivedlen//16):
+            buf2 += self.SEJ_V3_Run(meid)
+            
+        self.info("HACC terminate")
+        self.SEJ_V3_Terminate()
+        return buf2

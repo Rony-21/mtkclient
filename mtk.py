@@ -26,7 +26,7 @@ Usage:
     mtk.py gettargetconfig [--debugmode] [--vid=vid] [--pid=pid] [--socid]
     mtk.py peek <offset> <length> [--filename=filename] [--preloader=preloader]
     mtk.py stage [--stage2=filename] [--stage2addr=addr] [--stage1=filename] [--verifystage2] [--crash] [--socid]
-    mtk.py plstage [--filename=filename] [--socid]
+    mtk.py plstage [--filename=filename] [--preloader=preloader] [--socid]
 
 Description:
     printgpt            # Print GPT Table information
@@ -139,6 +139,75 @@ class Mtk(metaclass=LogBase):
         self.preloader = Preloader(self, self.__logger.level)
         self.daloader = DAloader(self, loader, preloader, self.__logger.level)
 
+    def crasher(self, args, enforcecrash, readsocid=False, display=True, mode=None):
+        rmtk=self
+        plt = PLTools(self, self.__logger.level)
+        if enforcecrash or not (self.port.cdc.vid == 0xE8D and self.port.cdc.pid == 0x0003):
+            self.info("We're not in bootrom, trying to crash da...")
+            if mode is None:
+                for crashmode in range(0, 3):
+                    try:
+                        plt.crash(crashmode)
+                    except Exception as err:
+                        self.__logger.debug(str(err))
+                        pass
+                    rmtk = Mtk(loader=args["--loader"], loglevel=self.__logger.level, vid=0xE8D, pid=0x0003,
+                               args=args, interface=1)
+                    rmtk.preloader.display = display
+                    if rmtk.preloader.init(args=args, readsocid=readsocid, maxtries=20):
+                        break
+            else:
+                try:
+                    plt.crash(mode)
+                except Exception as err:
+                    self.__logger.debug(str(err))
+                    pass
+                rmtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=0xE8D, pid=0x0003,
+                           interface=1, args=self.args)
+                rmtk.preloader.display = display
+                if rmtk.preloader.init(args=self.args, readsocid=readsocid, maxtries=20):
+                    return rmtk
+        return rmtk
+
+    def bypass_security(self, args, vid: int, pid: int, interface: int, readsocid=False, enforcecrash=False):
+        if self.preloader.init(args=args, readsocid=readsocid):
+            if self.config.target_config["daa"]:
+                mtk = self.crasher(args=args, readsocid=readsocid, enforcecrash=enforcecrash)
+                plt = PLTools(mtk, self.__logger.level)
+                payloadfile = args["--payload"]
+                if payloadfile is None:
+                    payloadfile = "payloads/generic_patcher_payload.bin"
+                if plt.runpayload(filename=payloadfile, ptype="kamakiri"):
+                    mtk.port.close()
+                    time.sleep(0.1)
+                    mtk = Mtk(loader=args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
+                              interface=interface, args=args)
+                    mtk.preloader.init(args=args, readsocid=readsocid)
+                    return mtk
+                else:
+                    self.error("Error on running kamakiri payload")
+        return self
+
+def parse_preloader(preloader):
+    with open(preloader, "rb") as rf:
+        magic = unpack("<I", rf.read(4))[0]
+        if magic == 0x014D4D4D:
+            rf.seek(0x1C)
+            daaddr = unpack("<I", rf.read(4))[0]
+            dasize = unpack("<I", rf.read(4))[0]
+            maxsize = unpack("<I", rf.read(4))[0]
+            content_offset = unpack("<I", rf.read(4))[0]
+            sig_length = unpack("<I", rf.read(4))[0]
+            jump_offset = unpack("<I", rf.read(4))[0]
+            daaddr = jump_offset + daaddr
+            rf.seek(jump_offset)
+            dadata = rf.read(dasize - jump_offset)
+        else:
+            daaddr = 0x201000
+            rf.seek(0)
+            dadata = rf.read()
+        return daaddr, dadata
+    return None, None
 
 class Main(metaclass=LogBase):
     def __init__(self):
@@ -153,35 +222,6 @@ class Main(metaclass=LogBase):
 
     def close(self):
         sys.exit(0)
-
-    def crasher(self, rmtk, enforcecrash, readsocid=False, display=True, mode=None):
-        plt = PLTools(rmtk, self.__logger.level)
-        if enforcecrash or not (rmtk.port.cdc.vid == 0xE8D and rmtk.port.cdc.pid == 0x0003):
-            self.info("We're not in bootrom, trying to crash da...")
-            if mode is None:
-                for crashmode in range(0, 3):
-                    try:
-                        plt.crash(crashmode)
-                    except Exception as err:
-                        self.__logger.debug(str(err))
-                        pass
-                    rmtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=0xE8D, pid=0x0003,
-                               args=self.args, interface=1)
-                    rmtk.preloader.display = display
-                    if rmtk.preloader.init(args=self.args, readsocid=readsocid, maxtries=20):
-                        break
-            else:
-                try:
-                    plt.crash(mode)
-                except Exception as err:
-                    self.__logger.debug(str(err))
-                    pass
-                rmtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=0xE8D, pid=0x0003,
-                           interface=1, args=self.args)
-                rmtk.preloader.display = display
-                if rmtk.preloader.init(args=self.args, readsocid=readsocid, maxtries=20):
-                    return rmtk
-        return rmtk
 
     def run(self):
         if self.args["--vid"] is not None:
@@ -214,7 +254,7 @@ class Main(metaclass=LogBase):
 
         if self.args["dumpbrom"]:
             if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                rmtk = self.crasher(rmtk=mtk, readsocid=readsocid, enforcecrash=enforcecrash)
+                rmtk = mtk.crasher(args=self.args, readsocid=readsocid, enforcecrash=enforcecrash)
                 if rmtk is None:
                     sys.exit(0)
                 if rmtk.port.cdc.vid != 0xE8D and rmtk.port.cdc.pid != 0x0003:
@@ -248,7 +288,8 @@ class Main(metaclass=LogBase):
                                args=self.args)
                     rmtk.preloader.display = False
                     if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                        rmtk = self.crasher(rmtk=rmtk, readsocid=readsocid, enforcecrash=enforcecrash, display=False)
+                        rmtk = mtk.crasher(args=self.args, readsocid=readsocid, enforcecrash=enforcecrash,
+                                           display=False)
                         try:
                             plt = PLTools(rmtk, self.__logger.level)
                             plt.kama.var1 = i
@@ -282,7 +323,8 @@ class Main(metaclass=LogBase):
             self.close()
         elif self.args["crash"]:
             if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                self.crasher(rmtk=mtk, readsocid=readsocid, enforcecrash=enforcecrash, mode=getint(self.args["--mode"]))
+                mtk = mtk.crasher(args=self.args, readsocid=readsocid, enforcecrash=enforcecrash,
+                                   mode=getint(self.args["--mode"]))
             mtk.port.close()
             self.close()
         elif self.args["plstage"]:
@@ -290,28 +332,43 @@ class Main(metaclass=LogBase):
                 filename = os.path.join("payloads", "pl.bin")
             else:
                 filename = self.args["--filename"]
-            if os.path.exists(filename):
-                with open(filename, "rb") as rf:
-                    rf.seek(0)
-                    dadata = rf.read()
-            if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                if mtk.config.chipconfig.pl_payload_addr is not None:
-                    daaddr = mtk.config.chipconfig.pl_payload_addr
-                else:
-                    daaddr = 0x40200000  # 0x40001000
-                if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
-                    self.info(f"Sent da to {hex(daaddr)}, length {hex(len(dadata))}")
-                    if mtk.preloader.jump_da(daaddr):
-                        self.info(f"Jumped to {hex(daaddr)}.")
-                        ack = unpack(">I", mtk.port.usbread(4))[0]
-                        if ack == 0xB1B2B3B4:
-                            self.info("Successfully loaded stage2")
+            if self.args["--preloader"] is not None:
+                preloader = self.args["--preloader"]
+                if os.path.exists(preloader):
+                    daaddr,dadata=parse_preloader(preloader)
+                    mtk=mtk.bypass_security(args=self.args, vid=vid, pid=pid, interface=interface,
+                                             readsocid=readsocid,enforcecrash=enforcecrash)
+                    if mtk is not None:
+                        if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
+                            self.info(f"Sent preloader to {hex(daaddr)}, length {hex(len(dadata))}")
+                            if mtk.preloader.jump_da(daaddr):
+                                self.info(f"Jumped to pl {hex(daaddr)}.")
+                            else:
+                                self.error("Error on jumping to pl")
+                                return
+            else:
+                if os.path.exists(filename):
+                    with open(filename, "rb") as rf:
+                        rf.seek(0)
+                        dadata = rf.read()
+                if mtk.preloader.init(args=self.args, readsocid=readsocid):
+                    if mtk.config.chipconfig.pl_payload_addr is not None:
+                        daaddr = mtk.config.chipconfig.pl_payload_addr
                     else:
-                        self.error("Error on jumping to pl")
-                        return
+                        daaddr = 0x40200000  # 0x40001000
+            if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
+                self.info(f"Sent da to {hex(daaddr)}, length {hex(len(dadata))}")
+                if mtk.preloader.jump_da(daaddr):
+                    self.info(f"Jumped to {hex(daaddr)}.")
+                    ack = unpack(">I", mtk.port.usbread(4))[0]
+                    if ack == 0xB1B2B3B4:
+                        self.info("Successfully loaded stage2")
                 else:
-                    self.error("Error on sending pl")
+                    self.error("Error on jumping to pl")
                     return
+            else:
+                self.error("Error on sending pl")
+                return
             self.close()
         elif self.args["peek"]:
             addr = getint(self.args["<offset>"])
@@ -325,30 +382,15 @@ class Main(metaclass=LogBase):
             else:
                 filename = self.args["--filename"]
             if os.path.exists(preloader):
-                with open(preloader, "rb") as rf:
-                    magic = unpack("<I", rf.read(4))[0]
-                    if magic == 0x014D4D4D:
-                        rf.seek(0x1C)
-                        daaddr = unpack("<I", rf.read(4))[0]
-                        dasize = unpack("<I", rf.read(4))[0]
-                        maxsize = unpack("<I", rf.read(4))[0]
-                        content_offset = unpack("<I", rf.read(4))[0]
-                        sig_length = unpack("<I", rf.read(4))[0]
-                        jump_offset = unpack("<I", rf.read(4))[0]
-                        daaddr = jump_offset + daaddr
-                        rf.seek(jump_offset)
-                        dadata = rf.read(dasize - jump_offset)
-                    else:
-                        daaddr = 0x201000
-                        rf.seek(0)
-                        dadata = rf.read()
-            if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                # mtk = self.crasher(mtk=mtk, enforcecrash=enforcecrash)
-                if mtk.port.cdc.pid == 0x0003:
+                daaddr,dadata=parse_preloader(preloader)
+            mtk = mtk.bypass_security(args=self.args, vid=vid, pid=pid, interface=interface,
+                                      readsocid=readsocid, enforcecrash=enforcecrash)
+            if mtk is not None:
+                if mtk is not None:
                     if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
-                        self.info(f"Sent da to {hex(daaddr)}, length {hex(len(dadata))}")
+                        self.info(f"Sent preloader to {hex(daaddr)}, length {hex(len(dadata))}")
                         if mtk.preloader.jump_da(daaddr):
-                            self.info(f"Jumped to {hex(daaddr)}.")
+                            self.info(f"Jumped to pl {hex(daaddr)}.")
                             time.sleep(2)
                             mtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
                                       interface=interface,
@@ -367,22 +409,19 @@ class Main(metaclass=LogBase):
                         else:
                             self.error("Error on jumping to pl")
                             return
-                    else:
-                        self.error("Error on sending pl")
-                        return
-            dwords = length // 4
-            if length % 4:
-                dwords += 1
-            data = mtk.preloader.read32(addr, dwords)
-            res = b""
-            for value in data:
-                res += pack("<I", value)
-            if filename == "":
-                print(hexlify(res).decode('utf-8'))
-            else:
-                with open(filename, "wb") as wf:
-                    wf.write(res)
-                    self.info(f"Data from {hex(addr)} with size of {hex(length)} was written to " + filename)
+                dwords = length // 4
+                if length % 4:
+                    dwords += 1
+                data = mtk.preloader.read32(addr, dwords)
+                res = b""
+                for value in data:
+                    res += pack("<I", value)
+                if filename == "":
+                    print(hexlify(res).decode('utf-8'))
+                else:
+                    with open(filename, "wb") as wf:
+                        wf.write(res)
+                        self.info(f"Data from {hex(addr)} with size of {hex(length)} was written to " + filename)
             self.close()
         elif self.args["stage"]:
             if self.args["--filename"] is None:
@@ -509,21 +548,9 @@ class Main(metaclass=LogBase):
             mtk.port.close()
             self.close()
         else:
-            if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                if mtk.config.target_config["daa"]:
-                    mtk = self.crasher(rmtk=mtk, readsocid=readsocid, enforcecrash=enforcecrash)
-                    plt = PLTools(mtk, self.__logger.level)
-                    payloadfile = self.args["--payload"]
-                    if payloadfile is None:
-                        payloadfile = "payloads/generic_patcher_payload.bin"
-                    if plt.runpayload(filename=payloadfile, ptype="kamakiri"):
-                        mtk.port.close()
-                        time.sleep(0.1)
-                        mtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
-                                  interface=interface, args=self.args)
-                        mtk.preloader.init(args=self.args, readsocid=readsocid)
-                    else:
-                        self.error("Error on running kamakiri payload")
+            mtk = mtk.bypass_security(args=self.args, vid=vid, pid=pid, interface=interface,
+                                      readsocid=readsocid, enforcecrash=enforcecrash)
+            if mtk is not None:
                 if not mtk.daloader.upload_da():
                     self.error("Error uploading da")
                     return False

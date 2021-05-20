@@ -78,11 +78,23 @@ If you want to use SP Flash tool afterwards, make sure you select "UART" in the 
 - Device has to be in bootrom mode, or da mode has to be crashed to enter damode
 - if no option is given, either kamakiri or da will be used (da for insecure targets)
 - if "kamakiri" is used as an option, kamakiri is enforced
-- Valid options are : "kamakiri" (via usb_ctrl_handler attack), "amonet" (via gcpu) and
-                      "hashimoto" (via cqdma)
+- Valid options are : "kamakiri" (via usb_ctrl_handler attack), "amonet" (via gcpu)
+  and "hashimoto" (via cqdma)
 
 ```
 ./mtk.py dumpbrom --ptype=["amonet","kamakiri","hashimoto"] [--filename=brom.bin]
+```
+
+### Run original/patched preloader and disable sbc
+- Boot in Brom or crash to Brom
+```
+./mtk.py plstage --preloader=preloader.bin
+```
+
+### Read memory using patched preloader
+- Boot in Brom or crash to Brom
+```
+./mtk.py peek [addr] [length] --preloader=patched_preloader.bin
 ```
 
 ### Run custom payload
