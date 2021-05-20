@@ -42,7 +42,7 @@ sudo mv /usr/local/libdwarves* /usr/local/lib/ && sudo ldconfig
 wget https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-`uname -r`.tar.xz
 tar xvf linux-`uname -r`.tar.xz
 cd linux-`uname -r`
-patch -p1 < ../Setup/kernelpatches/disable-usb-checks-5.10.patch
+patch -p1 < ../Setup/Linux/kernelpatches/disable-usb-checks-5.10.patch
 cp -v /boot/config-$(uname -r) .config
 make menuconfig
 make
