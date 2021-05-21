@@ -528,7 +528,7 @@ class Main(metaclass=LogBase):
                 return False
         elif self.args["payload"]:
             if mtk.preloader.init(args=self.args, readsocid=readsocid):
-                mtk = self.crasher(rmtk=mtk, readsocid=readsocid, enforcecrash=enforcecrash)
+                mtk = mtk.crasher(args=self.args, readsocid=readsocid, enforcecrash=enforcecrash)
                 plt = PLTools(mtk, self.__logger.level)
                 payloadfile = self.args["--payload"]
                 if payloadfile is None:
