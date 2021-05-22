@@ -26,7 +26,7 @@ Usage:
     mtk.py gettargetconfig [--debugmode] [--vid=vid] [--pid=pid] [--socid]
     mtk.py peek <offset> <length> [--filename=filename] [--preloader=preloader]
     mtk.py stage [--stage2=filename] [--stage2addr=addr] [--stage1=filename] [--verifystage2] [--crash] [--socid]
-    mtk.py plstage [--filename=filename] [--preloader=preloader] [--socid]
+    mtk.py plstage [--filename=filename] [--preloader=preloader] [--startpartition=startpartition] [--socid]
 
 Description:
     printgpt            # Print GPT Table information
@@ -73,6 +73,7 @@ Options:
     --filename=filename                Optional filename
     --crash                            Enforce crash if device is in pl mode to enter brom mode
     --socid                            Read Soc ID
+    --startpartition=startpartition    Option for plstage - Boot to (lk, tee1)
 """
 
 import os
@@ -176,7 +177,10 @@ class Mtk(metaclass=LogBase):
                 plt = PLTools(mtk, self.__logger.level)
                 payloadfile = args["--payload"]
                 if payloadfile is None:
-                    payloadfile = "payloads/generic_patcher_payload.bin"
+                    if self.config.chipconfig.loader is None:
+                        payloadfile = os.path.join("payloads","generic_patcher_payload.bin")
+                    else:
+                        payloadfile = os.path.join("payloads",self.config.chipconfig.loader)
                 if plt.runpayload(filename=payloadfile, ptype="kamakiri"):
                     mtk.port.close()
                     time.sleep(0.1)
@@ -342,10 +346,58 @@ class Main(metaclass=LogBase):
                         if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
                             self.info(f"Sent preloader to {hex(daaddr)}, length {hex(len(dadata))}")
                             if mtk.preloader.jump_da(daaddr):
-                                self.info(f"Jumped to pl {hex(daaddr)}.")
+                                self.info(f"PL Jumped to pl {hex(daaddr)}.")
+                                time.sleep(2)
+                                mtk = Mtk(loader=self.args["--loader"], loglevel=self.__logger.level, vid=vid, pid=pid,
+                                          interface=interface,
+                                          args=self.args)
+                                res = mtk.preloader.init(args=self.args, readsocid=readsocid)
+                                if self.args["--startpartition"] is not None:
+                                    partition = self.args["--startpartition"]
+                                    if not res:
+                                        self.error("Error on loading preloader")
+                                        return
+                                    else:
+                                        self.info("Successfully connected to pl, booting to : "+partition)
+                                        if os.path.exists(filename):
+                                            data=open(filename,"rb").read()
+                                            #if data[0:4]!=b"\x88\x16\x88\x58":
+                                            #    data=0x200*b"\x00"+data
+                                            mtk.preloader.send_partition_data(partition,data)
+                                            status = mtk.preloader.jump_to_partition("")
+                                            logo = open("logo.bin", "rb").read()
+                                            mtk.preloader.send_partition_data("logo",logo)
+                                            boot = open("boot.img", "rb").read()
+                                            mtk.preloader.send_partition_data("boot", boot)
+                                            tee = open("tee1.bin", "rb").read()
+                                            mtk.preloader.send_partition_data("tee1", tee)
+                                        status = mtk.preloader.jump_to_partition("lk")  # Do not remove !
+                                        return
+                                else:
+                                    filename = os.path.join("payloads", "pl.bin")
+                                    if os.path.exists(filename):
+                                        with open(filename, "rb") as rf:
+                                            rf.seek(0)
+                                            dadata = rf.read()
+                                    if mtk.config.chipconfig.pl_payload_addr is not None:
+                                        daaddr = mtk.config.chipconfig.pl_payload_addr
+                                    else:
+                                        daaddr = 0x40200000  # 0x40001000
+                                    if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
+                                        self.info(f"Sent da to {hex(daaddr)}, length {hex(len(dadata))}")
+                                        mtk.preloader.get_hw_sw_ver()
+                                        if mtk.preloader.jump_da(daaddr):
+                                            self.info(f"Jumped to {hex(daaddr)}.")
+                                            ack = unpack(">I", mtk.port.usbread(4))[0]
+                                            if ack == 0xB1B2B3B4:
+                                                self.info("Successfully loaded stage2")
+                                                return
                             else:
                                 self.error("Error on jumping to pl")
                                 return
+                else:
+                    print("Preloader path doesn't exist :(")
+                    return
             else:
                 if os.path.exists(filename):
                     with open(filename, "rb") as rf:
@@ -401,11 +453,8 @@ class Main(metaclass=LogBase):
                                 return
                             else:
                                 self.info("Successfully connected to pl.")
-                                mtk.port.usbwrite(mtk.preloader.Cmd.GET_ME_ID.value)  # 0xE1
-                                if mtk.port.usbread(1) == mtk.preloader.Cmd.GET_ME_ID.value:
-                                    rlength = unpack(">I", mtk.port.usbread(4))[0]
-                                    mtk.config.meid = mtk.port.usbread(rlength)
-                                    status = unpack("<H", mtk.port.usbread(2))[0]
+                                mtk.preloader.get_hw_sw_ver()
+                                #status=mtk.preloader.jump_to_partition(b"") # Do not remove !
                         else:
                             self.error("Error on jumping to pl")
                             return
@@ -445,7 +494,7 @@ class Main(metaclass=LogBase):
             verifystage2 = self.args["--verifystage2"]
             if mtk.preloader.init(args=self.args, readsocid=readsocid):
                 if self.args["--crash"] is not None:
-                    mtk = self.crasher(rmtk=mtk, readsocid=readsocid, enforcecrash=enforcecrash)
+                    mtk = mtk.crasher(args=self.args, readsocid=readsocid, enforcecrash=enforcecrash)
                 if mtk.port.cdc.pid == 0x0003:
                     plt = PLTools(mtk, self.__logger.level)
                     self.info("Uploading stage 1")
@@ -532,7 +581,10 @@ class Main(metaclass=LogBase):
                 plt = PLTools(mtk, self.__logger.level)
                 payloadfile = self.args["--payload"]
                 if payloadfile is None:
-                    payloadfile = "payloads/generic_patcher_payload.bin"
+                    if mtk.config.chipconfig.loader is None:
+                        payloadfile = os.path.join("payloads","generic_patcher_payload.bin")
+                    else:
+                        payloadfile = os.path.join("payloads",mtk.config.chipconfig.loader)
                 if self.args["--ptype"] == "amonet":
                     plt.runpayload(filename=payloadfile, ptype="amonet")
                 elif self.args["--ptype"] == "kamakiri":

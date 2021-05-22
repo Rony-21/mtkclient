@@ -247,6 +247,7 @@ class sej(metaclass=LogBase):
         return buf2
 
     def generate_rpmb(self,meid,derivedlen=32):
+        """
         self.info("HACC init")
         self.SEJ_V3_Init(True)
         self.info("HACC run")
@@ -258,3 +259,9 @@ class sej(metaclass=LogBase):
         self.info("HACC terminate")
         self.SEJ_V3_Terminate()
         return buf2
+        """
+        buf=bytearray()
+        meid=bytearray(meid) # 0x100010
+        for i in range(derivedlen):
+            buf.append(meid[i%16])
+        return self.hw_aes128_cbc_encrypt(buf)

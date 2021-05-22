@@ -161,7 +161,8 @@ class Preloader(metaclass=LogBase):
                 self.info("\tCQ_DMA addr:\t\t" + hex(self.config.chipconfig.cqdma_base))
             self.info("\tVar1:\t\t\t" + hex(self.config.chipconfig.var1))
 
-        res = self.get_hw_sw_ver()
+        #res = self.get_hw_sw_ver()
+        res=[0,0,0]
         self.config.hwsubcode = 0
         self.config.hwver = 0
         self.config.swver = 0
@@ -184,7 +185,7 @@ class Preloader(metaclass=LogBase):
             with open(os.path.join("logs", "hwcode"), "w") as wf:
                 wf.write(hex(self.config.hwcode))
         blver=self.get_blver()
-        if blver!=-2:
+        if blver!=-2 and blver!=1:
             caps=self.get_plcap()
             if caps[0] & self.Cap.PL_CAP0_MEID_SUPPORT.value==self.Cap.PL_CAP0_MEID_SUPPORT.value:
                 meid = self.get_meid()
@@ -276,6 +277,51 @@ class Preloader(metaclass=LogBase):
         assert self.usbread(1) == cmd
         self.usbread(1)
         self.usbread(2)
+
+    def jump_to_partition(self, partitionname):
+        if isinstance(partitionname,str):
+            partitionname=bytes(partitionname,'utf-8')[:64]
+        partitionname=partitionname+(64-len(partitionname))*b'\x00'
+        if self.echo(self.Cmd.JUMP_TO_PARTITION.value):
+            self.usbwrite(partitionname)
+            status2 = self.rword()
+            if status2 <= 0xFF:
+                return True
+
+    def calc_xflash_checksum(self, data):
+        checksum=0
+        pos=0
+        for i in range(0,len(data)//4):
+            checksum+=unpack("<I", data[i * 4:(i * 4) + 4])[0]
+            pos+=4
+        if len(data)%4!=0:
+            for i in range(4-(len(data)%4)):
+                checksum+=data[pos]
+                pos+=1
+        return checksum&0xFFFFFFFF
+
+    def send_partition_data(self, partitionname, data):
+        checksum = self.calc_xflash_checksum(data)
+        if isinstance(partitionname,str):
+            partitionname=bytes(partitionname,'utf-8')[:64]
+        partitionname=partitionname+(64-len(partitionname))*b'\x00'
+        if self.echo(self.Cmd.SEND_PARTITION_DATA.value):
+            self.usbwrite(partitionname)
+            self.usbwrite(pack(">I",len(data)))
+            status = self.rword()
+            if status <= 0xFF:
+                length = len(data)
+                pos=0
+                while length > 0:
+                    dsize = min(length, 0x200)
+                    if not self.usbwrite(data[pos:pos + dsize]):
+                        break
+                    pos += dsize
+                    length -= dsize
+                #self.usbwrite(data)
+                self.usbwrite(pack(">I",checksum))
+
+
 
     def setreg_disablewatchdogtimer(self, hwcode):
         """
@@ -495,7 +541,7 @@ class Preloader(metaclass=LogBase):
         return gen_chksum, data
 
     def upload_data(self, data, gen_chksum):
-        for i in range(0, len(data), 64):
+        for i in range(0, len(data),64):
             if not self.usbwrite(data[i:i + 64]):
                 return False
         self.usbwrite(b"")
