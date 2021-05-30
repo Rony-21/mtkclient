@@ -13,5 +13,5 @@ enum34~=1.1.10
 argparse~=1.4.0
 pyelftools~=0.26
 asn1~=2.4.1
-keystone~=18.0.0
+keystone-engine
 asn1crypto~=1.4.0

@@ -687,18 +687,25 @@ class DALegacy(metaclass=LogBase):
 
     def sdmmc_write_data(self, addr, length, filename, parttype=None, display=True):
         if parttype is None or parttype == "user":
+            length = min(length, self.emmc["m_emmc_ua_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
         elif parttype == "boot1":
+            length = min(length, self.emmc["m_emmc_boot1_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT1
         elif parttype == "boot2":
+            length = min(length, self.emmc["m_emmc_boot2_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT2
         elif parttype == "gp1":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP1
         elif parttype == "gp2":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP2
         elif parttype == "gp3":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP3
         elif parttype == "gp4":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP4
         elif parttype == "rpmb":
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB
@@ -803,22 +810,30 @@ class DALegacy(metaclass=LogBase):
         return self.sdmmc_write_data(addr=addr, length=length, filename=filename, parttype=parttype, display=display)
 
     def formatflash(self, addr, length, parttype=None, display=True):
+        #return self.sdmmc_format_data(addr=addr, length=length, parttype=parttype, display=display)
         return False
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
         if parttype is None or parttype == "user" or parttype == "":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
         elif parttype == "boot1":
+            length=min(length,self.emmc["m_emmc_boot1_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT1
         elif parttype == "boot2":
+            length=min(length,self.emmc["m_emmc_boot2_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT2
         elif parttype == "gp1":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP1
         elif parttype == "gp2":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP2
         elif parttype == "gp3":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP3
         elif parttype == "gp4":
+            length = min(length, self.emmc["m_emmc_gp_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP4
         elif parttype == "rpmb":
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB

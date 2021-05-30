@@ -52,15 +52,17 @@ class Port(metaclass=LogBase):
         while i < length and tries > 0:
             if self.cdc.device.write(self.cdc.EP_OUT, startcmd[i]):
                 time.sleep(0.01)
-                v = self.cdc.device.read(self.cdc.EP_IN, 64, None)
-                if len(v) == 1:
-                    if v[0] == ~(startcmd[i][0]) & 0xFF:
-                        i += 1
-                    else:
-                        i = 0
-                        self.cdc.setbreak()
-                        self.cdc.setLineCoding(self.config.baudrate)
-                        tries -= 1
+                v = self.cdc.device.read(self.cdc.EP_IN, 1, None)
+                if v==b"R" and i==0: # We expect READY to be send
+                    v = self.cdc.device.read(self.cdc.EP_IN, 4, None)
+                    continue
+                if v[0] == ~(startcmd[i][0]) & 0xFF:
+                    i += 1
+                else:
+                    i = 0
+                    self.cdc.setbreak()
+                    self.cdc.setLineCoding(self.config.baudrate)
+                    tries -= 1
         print()
         self.info("Device detected :)")
         return True
@@ -85,6 +87,7 @@ class Port(metaclass=LogBase):
                     i = 0
                     # self.cdc.setLineCoding(115200)
                     # self.cdc.setbreak()
+
                     while i < length and tries > 0:
                         if self.cdc.device.write(self.cdc.EP_OUT, startcmd[i]):
                             time.sleep(0.01)

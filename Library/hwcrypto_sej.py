@@ -4,7 +4,7 @@
 import logging, os
 from struct import pack, unpack
 from Library.utils import LogBase
-
+from binascii import hexlify
 
 def bytes_to_dwords(buf):
     res = []
@@ -12,6 +12,12 @@ def bytes_to_dwords(buf):
         res.append(unpack("<I", buf[i * 4:(i * 4) + 4])[0])
     return res
 
+AES_CBC_MODE = 1
+AES_SW_KEY = 0
+AES_HW_KEY = 1
+AES_HW_WRAP_KEY = 2
+AES_KEY_128 = 16
+AES_KEY_256 = 32
 
 regval = {
     "HACC_CON": 0x0000,
@@ -154,6 +160,97 @@ class sej(metaclass=LogBase):
         else:
             self.__logger.setLevel(logging.INFO)
 
+    def uffs(self, x):
+        v1 = x
+        if x&0xFFFF:
+            result=1
+        else:
+            v1 >>= 16
+            result = 17
+        if not v1&0xFF:
+            v1 >>= 8
+            result += 8
+        if not ((v1 << 28)&0xFFFFFFFF):
+            v1 >>= 4
+            result += 4
+        if not ((v1 << 30)&0xFFFFFFFF):
+            v1 >>= 2
+            result += 2
+        if not v1 & 1:
+            result += 1
+        return result
+
+    def tz_dapc_set_master_transaction(self, master_index, permission_control):
+        t=1<<master_index
+        v=self.read32(0x10007500) & ~t
+        if t:
+            t=self.uffs(t)
+        val=v | permission_control<<(t-1)
+        self.write32(0x10007500,val)
+        return t
+
+    def crypto_secure(self, val):
+        if val:
+            self.write32(0x10216024,0x20002)
+        else:
+            self.write32(0x10216024, 0x0)
+
+    def device_APC_dom_setup(self):
+        self.write32(0x10007F00,0)
+        tv = self.read32(0x10007400)&0xFFFFFFFF
+        self.write32(0x10007400, tv | (1<<(self.uffs(0xF0000000)-1)))
+        tv_0 = self.read32(0x10007400) & 0xF0FFFFFF
+        self.write32(0x10007400, tv | (2 << (self.uffs(0xF0000000) - 1)))
+
+    def sej_set_mode(self,mode):
+        self.reg.HACC_ACON = self.reg.HACC_ACON & ((~2)&0xFFFFFFFF)
+        if mode==1: # CBC
+            self.reg.HACC_ACON |=2
+
+    def sej_set_key(self, key, flag, data=None):
+        # 0 uses software key (sml_aes_key)
+        # 1 uses Real HW Crypto Key
+        # 2 uses 32 byte hw derived key from sw key
+        # 3 uses 32 byte hw derived key from rid
+        # 4 uses custom key (customer key ?)
+        klen=0x10
+        if flag==0x18:
+            klen=0x10
+        elif flag==0x20:
+            klen=0x20
+        self.write32(0x109E64,klen)
+        self.reg.HACC_ACON=(self.reg.HACC_ACON&0xFFFFFFCF)|klen
+        self.reg.HACC_AKEY0 = 0
+        self.reg.HACC_AKEY1 = 0
+        self.reg.HACC_AKEY2 = 0
+        self.reg.HACC_AKEY3 = 0
+        self.reg.HACC_AKEY4 = 0
+        self.reg.HACC_AKEY5 = 0
+        self.reg.HACC_AKEY6 = 0
+        self.reg.HACC_AKEY7 = 0
+
+        if key == 1:
+            self.reg.HACC_ACONK|=0x10
+        else:
+            # Key has to be converted to be big endian
+            keydata=[0,0,0,0,0,0,0,0]
+            for i in range(0,len(data),4):
+                keydata[i//4]=unpack(">I",data[i:i+4])[0]
+            self.reg.HACC_AKEY0 = keydata[0]
+            self.reg.HACC_AKEY1 = keydata[1]
+            self.reg.HACC_AKEY2 = keydata[2]
+            self.reg.HACC_AKEY3 = keydata[3]
+            self.reg.HACC_AKEY4 = keydata[4]
+            self.reg.HACC_AKEY5 = keydata[5]
+            self.reg.HACC_AKEY6 = keydata[6]
+            self.reg.HACC_AKEY7 = keydata[7]
+
+    def tz_pre_init(self):
+        #self.device_APC_dom_setup()
+        #self.tz_dapc_set_master_transaction(4,1)
+        #self.crypto_secure(1)
+        return
+
     def SEJ_V3_Init(self, encrypt=True, g_AC_CFG=None):
         if g_AC_CFG is None:
             g_AC_CFG = self.g_HACC_CFG_1
@@ -235,9 +332,11 @@ class sej(metaclass=LogBase):
             pdst.extend(pack("<I", self.reg.HACC_AOUT1))
             pdst.extend(pack("<I", self.reg.HACC_AOUT2))
             pdst.extend(pack("<I", self.reg.HACC_AOUT3))
+            pos+=4
         return pdst
 
     def hw_aes128_cbc_encrypt(self, buf, encrypt=True):
+        self.tz_pre_init()
         self.info("HACC init")
         self.SEJ_V3_Init(encrypt)
         self.info("HACC run")
@@ -246,20 +345,72 @@ class sej(metaclass=LogBase):
         self.SEJ_V3_Terminate()
         return buf2
 
-    def generate_rpmb(self,meid,derivedlen=32):
-        """
-        self.info("HACC init")
-        self.SEJ_V3_Init(True)
-        self.info("HACC run")
+    def sej_set_otp(self,data):
+        pd=bytes_to_dwords(data)
+        self.reg.HACC_SW_OTP0 = pd[0]
+        self.reg.HACC_SW_OTP1 = pd[1]
+        self.reg.HACC_SW_OTP2 = pd[2]
+        self.reg.HACC_SW_OTP3 = pd[3]
+        self.reg.HACC_SW_OTP4 = pd[4]
+        self.reg.HACC_SW_OTP5 = pd[5]
+        self.reg.HACC_SW_OTP6 = pd[6]
+        self.reg.HACC_SW_OTP7 = pd[7]
+        #self.reg.HACC_SECINIT0 = pd[8]
+        #self.reg.HACC_SECINIT1 = pd[9]
+        #self.reg.HACC_SECINIT2 = pd[0xA]
+        #self.reg.HACC_MKJ = pd[0xB]
 
-        buf2 = b""
-        for i in range(derivedlen//16):
-            buf2 += self.SEJ_V3_Run(meid)
-            
-        self.info("HACC terminate")
-        self.SEJ_V3_Terminate()
-        return buf2
-        """
+    def sej_do_aes(self, encrypt, iv, data, length):
+        self.reg.HACC_ACON2 |= self.HACC_AES_CLR
+        piv = bytes_to_dwords(iv)
+        self.reg.HACC_ACFG0 = piv[0]
+        self.reg.HACC_ACFG1 = piv[1]
+        self.reg.HACC_ACFG2 = piv[2]
+        self.reg.HACC_ACFG3 = piv[3]
+        if encrypt:
+            self.reg.HACC_ACON |= 1
+        else:
+            self.reg.HACC_ACON &= 0xFFFFFFFE
+        pdst = bytearray()
+        for pos in range(0,length,16):
+            psrc = bytes_to_dwords(data[(pos%len(data)):(pos%len(data))+16])
+            plen = len(psrc)
+            pos = 0
+            for i in range(plen // 4):
+                self.reg.HACC_ASRC0 = psrc[pos + 0]
+                self.reg.HACC_ASRC1 = psrc[pos + 1]
+                self.reg.HACC_ASRC2 = psrc[pos + 2]
+                self.reg.HACC_ASRC3 = psrc[pos + 3]
+                self.reg.HACC_ACON2 |= 1
+                while True:
+                    if self.reg.HACC_ACON2 & self.HACC_AES_RDY != 0:
+                        break
+                pdst.extend(pack("<I", self.reg.HACC_AOUT0))
+                pdst.extend(pack("<I", self.reg.HACC_AOUT1))
+                pdst.extend(pack("<I", self.reg.HACC_AOUT2))
+                pdst.extend(pack("<I", self.reg.HACC_AOUT3))
+        return pdst
+
+    def sej_init(self,swkey):
+        iv=bytes.fromhex("57325A5A125497661254976657325A5A")
+        self.sej_set_mode(AES_CBC_MODE)
+        self.sej_set_key(AES_HW_KEY,AES_KEY_128)
+        hw_key=self.sej_do_aes(True,iv,swkey,32)
+        print(hexlify(hw_key))
+        self.sej_set_key(AES_HW_WRAP_KEY,AES_KEY_256,hw_key)
+
+    def sej_sec_cfg_decrypt(self,data):
+        self.sej_set_mode(AES_CBC_MODE)
+        self.sej_set_key(AES_SW_KEY, AES_KEY_256, b"1A52A367CB12C458965D32CD874B36B2")
+        iv = bytes.fromhex("57325A5A125497661254976657325A5A")
+        res = self.sej_do_aes(False, iv, data, len(data))
+        return res
+
+    def generate_rpmb(self,meid,otp,derivedlen=32):
+        #self.sej_sec_cfg_decrypt(bytes.fromhex("1FF7EB9EEA3BA346C2C94E3D44850C2172B56BC26D2450CA9ADBAB7136604542C3B2EA50057037669A4C493BF7CC7E6E2644563808F73B3AA5AFE2D48D97597E"))
+        #self.sej_init(b"1A52A367CB12C458965D32CD874B36B2")
+        #self.sej_set_otp(bytes.fromhex("486973656E7365000023232323232323232323230A006420617320302C207468010000009400000040000000797B797B"))
+        self.sej_set_otp(otp)
         buf=bytearray()
         meid=bytearray(meid) # 0x100010
         for i in range(derivedlen):

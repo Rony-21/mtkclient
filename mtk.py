@@ -91,6 +91,7 @@ from config.brom_config import Mtk_Config
 
 import time
 from binascii import hexlify
+from Library.utils import print_progress
 
 
 def split_by_n(seq, unit_count):
@@ -141,7 +142,7 @@ class Mtk(metaclass=LogBase):
         self.daloader = DAloader(self, loader, preloader, self.__logger.level)
 
     def crasher(self, args, enforcecrash, readsocid=False, display=True, mode=None):
-        rmtk=self
+        rmtk = self
         plt = PLTools(self, self.__logger.level)
         if enforcecrash or not (self.port.cdc.vid == 0xE8D and self.port.cdc.pid == 0x0003):
             self.info("We're not in bootrom, trying to crash da...")
@@ -149,8 +150,7 @@ class Mtk(metaclass=LogBase):
                 for crashmode in range(0, 3):
                     try:
                         plt.crash(crashmode)
-                    except Exception as err:
-                        self.__logger.debug(str(err))
+                    except:
                         pass
                     rmtk = Mtk(loader=args["--loader"], loglevel=self.__logger.level, vid=0xE8D, pid=0x0003,
                                args=args, interface=1)
@@ -178,9 +178,9 @@ class Mtk(metaclass=LogBase):
                 payloadfile = args["--payload"]
                 if payloadfile is None:
                     if self.config.chipconfig.loader is None:
-                        payloadfile = os.path.join("payloads","generic_patcher_payload.bin")
+                        payloadfile = os.path.join("payloads", "generic_patcher_payload.bin")
                     else:
-                        payloadfile = os.path.join("payloads",self.config.chipconfig.loader)
+                        payloadfile = os.path.join("payloads", self.config.chipconfig.loader)
                 if plt.runpayload(filename=payloadfile, ptype="kamakiri"):
                     mtk.port.close()
                     time.sleep(0.1)
@@ -191,6 +191,7 @@ class Mtk(metaclass=LogBase):
                 else:
                     self.error("Error on running kamakiri payload")
         return self
+
 
 def parse_preloader(preloader):
     with open(preloader, "rb") as rf:
@@ -212,6 +213,7 @@ def parse_preloader(preloader):
             dadata = rf.read()
         return daaddr, dadata
     return None, None
+
 
 class Main(metaclass=LogBase):
     def __init__(self):
@@ -328,7 +330,7 @@ class Main(metaclass=LogBase):
         elif self.args["crash"]:
             if mtk.preloader.init(args=self.args, readsocid=readsocid):
                 mtk = mtk.crasher(args=self.args, readsocid=readsocid, enforcecrash=enforcecrash,
-                                   mode=getint(self.args["--mode"]))
+                                  mode=getint(self.args["--mode"]))
             mtk.port.close()
             self.close()
         elif self.args["plstage"]:
@@ -339,9 +341,9 @@ class Main(metaclass=LogBase):
             if self.args["--preloader"] is not None:
                 preloader = self.args["--preloader"]
                 if os.path.exists(preloader):
-                    daaddr,dadata=parse_preloader(preloader)
-                    mtk=mtk.bypass_security(args=self.args, vid=vid, pid=pid, interface=interface,
-                                             readsocid=readsocid,enforcecrash=enforcecrash)
+                    daaddr, dadata = parse_preloader(preloader)
+                    mtk = mtk.bypass_security(args=self.args, vid=vid, pid=pid, interface=interface,
+                                              readsocid=readsocid, enforcecrash=enforcecrash)
                     if mtk is not None:
                         if mtk.preloader.send_da(daaddr, len(dadata), 0x100, dadata):
                             self.info(f"Sent preloader to {hex(daaddr)}, length {hex(len(dadata))}")
@@ -358,15 +360,15 @@ class Main(metaclass=LogBase):
                                         self.error("Error on loading preloader")
                                         return
                                     else:
-                                        self.info("Successfully connected to pl, booting to : "+partition)
+                                        self.info("Successfully connected to pl, booting to : " + partition)
                                         if os.path.exists(filename):
-                                            data=open(filename,"rb").read()
-                                            #if data[0:4]!=b"\x88\x16\x88\x58":
+                                            data = open(filename, "rb").read()
+                                            # if data[0:4]!=b"\x88\x16\x88\x58":
                                             #    data=0x200*b"\x00"+data
-                                            mtk.preloader.send_partition_data(partition,data)
+                                            mtk.preloader.send_partition_data(partition, data)
                                             status = mtk.preloader.jump_to_partition("")
                                             logo = open("logo.bin", "rb").read()
-                                            mtk.preloader.send_partition_data("logo",logo)
+                                            mtk.preloader.send_partition_data("logo", logo)
                                             boot = open("boot.img", "rb").read()
                                             mtk.preloader.send_partition_data("boot", boot)
                                             tee = open("tee1.bin", "rb").read()
@@ -434,7 +436,7 @@ class Main(metaclass=LogBase):
             else:
                 filename = self.args["--filename"]
             if os.path.exists(preloader):
-                daaddr,dadata=parse_preloader(preloader)
+                daaddr, dadata = parse_preloader(preloader)
             mtk = mtk.bypass_security(args=self.args, vid=vid, pid=pid, interface=interface,
                                       readsocid=readsocid, enforcecrash=enforcecrash)
             if mtk is not None:
@@ -453,24 +455,43 @@ class Main(metaclass=LogBase):
                                 return
                             else:
                                 self.info("Successfully connected to pl.")
-                                mtk.preloader.get_hw_sw_ver()
-                                #status=mtk.preloader.jump_to_partition(b"") # Do not remove !
+                                # mtk.preloader.get_hw_sw_ver()
+                                # status=mtk.preloader.jump_to_partition(b"") # Do not remove !
                         else:
                             self.error("Error on jumping to pl")
                             return
+                self.info("Starting to read ...")
                 dwords = length // 4
                 if length % 4:
                     dwords += 1
-                data = mtk.preloader.read32(addr, dwords)
-                res = b""
-                for value in data:
-                    res += pack("<I", value)
+                if filename != "":
+                    wf = open(filename, "wb")
+                sdata = b""
+                print_progress(0, 100, prefix='Progress:',
+                               suffix='Starting, addr 0x%08X' % addr, bar_length=50)
+                length = dwords * 4
+                old = 0
+                pos = 0
+                while dwords:
+                    size = min(512 // 4, dwords)
+                    data = b"".join(int.to_bytes(val, 4, 'little') for val in mtk.preloader.read32(addr+pos, size))
+                    sdata += data
+                    if filename != "":
+                        wf.write(data)
+                    pos += len(data)
+                    prog = pos / length * 100
+                    if round(prog, 1) > old:
+                        print_progress(prog, 100, prefix='Progress:',
+                                       suffix='Complete, addr 0x%08X' % (addr + pos), bar_length=50)
+                        old = round(prog, 1)
+                    dwords = (length - pos) // 4
+                print_progress(100, 100, prefix='Progress:',
+                               suffix='Finished', bar_length=50)
                 if filename == "":
-                    print(hexlify(res).decode('utf-8'))
+                    print(hexlify(sdata).decode('utf-8'))
                 else:
-                    with open(filename, "wb") as wf:
-                        wf.write(res)
-                        self.info(f"Data from {hex(addr)} with size of {hex(length)} was written to " + filename)
+                    wf.close()
+                    self.info(f"Data from {hex(addr)} with size of {hex(length)} was written to " + filename)
             self.close()
         elif self.args["stage"]:
             if self.args["--filename"] is None:
@@ -525,7 +546,7 @@ class Main(metaclass=LogBase):
                             if mtk.port.usbwrite(stage2data[pos:pos + size]):
                                 bytestowrite -= size
                                 pos += size
-                        #mtk.port.usbwrite(b"")
+                        # mtk.port.usbwrite(b"")
                         time.sleep(0.1)
                         flag = mtk.port.rdword()
                         if flag != 0xD0D0D0D0:
@@ -567,7 +588,7 @@ class Main(metaclass=LogBase):
                         mtk.port.usbwrite(pack(">I", 0x4001))
                         # address
                         mtk.port.usbwrite(pack(">I", stage2addr))
-                        self.info("Done jumping stage2")
+                        self.info("Done jumping stage2 at %08X" % stage2addr)
                         ack = unpack(">I", mtk.port.usbread(4))[0]
                         if ack == 0xB1B2B3B4:
                             self.info("Successfully loaded stage2")
@@ -582,9 +603,9 @@ class Main(metaclass=LogBase):
                 payloadfile = self.args["--payload"]
                 if payloadfile is None:
                     if mtk.config.chipconfig.loader is None:
-                        payloadfile = os.path.join("payloads","generic_patcher_payload.bin")
+                        payloadfile = os.path.join("payloads", "generic_patcher_payload.bin")
                     else:
-                        payloadfile = os.path.join("payloads",mtk.config.chipconfig.loader)
+                        payloadfile = os.path.join("payloads", mtk.config.chipconfig.loader)
                 if self.args["--ptype"] == "amonet":
                     plt.runpayload(filename=payloadfile, ptype="amonet")
                 elif self.args["--ptype"] == "kamakiri":
@@ -714,12 +735,12 @@ class Main(metaclass=LogBase):
         elif self.args["rf"]:
             filename = self.args["<filename>"]
             parttype = self.args["--parttype"]
-            if mtk.daloader.daconfig.flashtype=="ufs":
-                if parttype=="lu0":
+            if mtk.daloader.daconfig.flashtype == "ufs":
+                if parttype == "lu0":
                     length = mtk.daloader.daconfig.flashsize[0]
-                elif parttype=="lu1":
+                elif parttype == "lu1":
                     length = mtk.daloader.daconfig.flashsize[1]
-                elif parttype=="lu2":
+                elif parttype == "lu2":
                     length = mtk.daloader.daconfig.flashsize[2]
                 else:
                     length = mtk.daloader.daconfig.flashsize[0]
@@ -754,8 +775,9 @@ class Main(metaclass=LogBase):
                     if partition.name in pnames:
                         print(f"Detected partition: {partition.name}")
                         if partition.name in ["userdata2", "userdata"]:
-                            data = mtk.daloader.readflash(addr=(partition.sector + partition.sectors) * mtk.daloader.daconfig.pagesize - 0x4000,
-                                length=0x4000, filename="", parttype="user",display=False)
+                            data = mtk.daloader.readflash(
+                                addr=(partition.sector + partition.sectors) * mtk.daloader.daconfig.pagesize - 0x4000,
+                                length=0x4000, filename="", parttype="user", display=False)
                         else:
                             data = mtk.daloader.readflash(addr=partition.sector * mtk.daloader.daconfig.pagesize,
                                                           length=0x4000, filename="", parttype="user", display=False)

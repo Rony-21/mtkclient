@@ -350,6 +350,8 @@ class usb_class(metaclass=LogBase):
                     sys.exit(0)
                 else:
                     break
+            if tmp==b'':
+                time.sleep(0.005)
         self.verify_data(bytearray(tmp), "RX:")
         return bytearray(tmp)
 

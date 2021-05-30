@@ -17,7 +17,7 @@ class Stage2(metaclass=LogBase):
         result = []
         for pos in range(dwords):
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
-            self.cdc.usbwrite(pack(">I", 0x4000))
+            self.cdc.usbwrite(pack(">I", 0x4002))
             self.cdc.usbwrite(pack(">I", addr + (pos * 4)))
             self.cdc.usbwrite(pack(">I", 4))
             result.append(unpack("<I", self.cdc.usbread(4, 4))[0])
@@ -39,7 +39,7 @@ class Stage2(metaclass=LogBase):
             dwords = [dwords]
         for pos in range(0, len(dwords)):
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
-            self.cdc.usbwrite(pack(">I", 0x4002))
+            self.cdc.usbwrite(pack(">I", 0x4000))
             self.cdc.usbwrite(pack(">I", addr + (pos * 4)))
             self.cdc.usbwrite(pack(">I", 4))
             self.cdc.usbwrite(pack("<I", dwords[pos]))
@@ -200,13 +200,13 @@ class Stage2(metaclass=LogBase):
         while bytestoread > 0:
             size = min(bytestoread, 0x200)
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
-            self.cdc.usbwrite(pack(">I", 0x4000))
+            self.cdc.usbwrite(pack(">I", 0x4002))
             self.cdc.usbwrite(pack(">I", addr + pos))
             self.cdc.usbwrite(pack(">I", size))
             if filename is None:
                 data += self.cdc.usbread(size, size)
             else:
-                wf.write(self.cdc.usbwrite(size, size))
+                wf.write(self.cdc.usbread(size, size))
             bytestoread -= size
             pos += size
         self.info(f"{hex(start)}: " + hexlify(data).decode('utf-8'))
@@ -229,7 +229,7 @@ class Stage2(metaclass=LogBase):
         while bytestowrite > 0:
             size = min(bytestowrite, 0x200)
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
-            self.cdc.usbwrite(pack(">I", 0x4002))
+            self.cdc.usbwrite(pack(">I", 0x4000))
             self.cdc.usbwrite(pack(">I", addr + pos))
             self.cdc.usbwrite(pack(">I", size))
             if filename is None:
@@ -297,6 +297,10 @@ class Stage2(metaclass=LogBase):
             print_progress(100, 100, prefix='Complete: ', suffix=filename, bar_length=50)
         print("Done")
 
+    def reboot(self):
+        self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+        self.cdc.usbwrite(pack(">I", 0x3000))
+
 
 def getint(valuestr):
     if valuestr == '':
@@ -316,6 +320,7 @@ def getint(valuestr):
 cmds = {
     "rpmb": 'Dump rpmb',
     "preloader": 'Dump preloader',
+    "reboot": 'Reboot phone',
     "memread": "Read memory [Example: memread --start 0 --length 0x10]",
     "memwrite": "Write memory [Example: memwrite --start 0x200000 --data 11223344",
 }
@@ -334,7 +339,7 @@ def showcommands():
 
 def main():
     parser = argparse.ArgumentParser(description=info)
-    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite")
+    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite, keys")
     parser.add_argument('--reverse', dest='reverse', action="store_true",
                         help='Reverse byte order (example: rpmb command)')
     parser.add_argument('--length', dest='length', type=str,
@@ -343,8 +348,14 @@ def main():
                         help='Start offset to dump')
     parser.add_argument('--data', dest='data', type=str,
                         help='Data to write')
+    parser.add_argument('--mode', dest='mode', type=str,
+                        help='Mode for keys (dxcc,sej,gcpu)')
+    parser.add_argument('--otp', dest='otp', type=str,
+                        help='OTP for keys (dxcc,sej,gcpu)')
     parser.add_argument('--filename', dest='filename', type=str,
                         help='Read from / save to filename')
+    parser.add_argument('--meid', type=str,
+                        help='MEID (hex) as previously extracted from device')
     args = parser.parse_args()
     cmd = args.cmd
     if cmd not in cmds:
@@ -388,6 +399,8 @@ def main():
                 print(f"Successfully wrote data to {hex(start)}.")
             else:
                 print(f"Failed to write data to {hex(start)}.")
+        elif cmd == "reboot":
+            st2.reboot()
     st2.close()
 
 

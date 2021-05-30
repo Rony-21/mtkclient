@@ -161,8 +161,7 @@ class Preloader(metaclass=LogBase):
                 self.info("\tCQ_DMA addr:\t\t" + hex(self.config.chipconfig.cqdma_base))
             self.info("\tVar1:\t\t\t" + hex(self.config.chipconfig.var1))
 
-        #res = self.get_hw_sw_ver()
-        res=[0,0,0]
+        res = self.get_hw_sw_ver()
         self.config.hwsubcode = 0
         self.config.hwver = 0
         self.config.swver = 0
@@ -185,40 +184,21 @@ class Preloader(metaclass=LogBase):
             with open(os.path.join("logs", "hwcode"), "w") as wf:
                 wf.write(hex(self.config.hwcode))
         blver=self.get_blver()
-        if blver!=-2 and blver!=1:
-            caps=self.get_plcap()
-            if caps[0] & self.Cap.PL_CAP0_MEID_SUPPORT.value==self.Cap.PL_CAP0_MEID_SUPPORT.value:
-                meid = self.get_meid()
-                if len(meid) >= 16:
-                    with open(os.path.join("logs", "meid"), "wb") as wf:
-                        wf.write(hexlify(meid))
-                if self.display:
-                    if meid != b"":
-                        self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
-            if caps[0] & self.Cap.PL_CAP0_SOCID_SUPPORT.value == self.Cap.PL_CAP0_SOCID_SUPPORT.value:
-                socid = self.get_socid()
-                if len(socid) >= 16:
-                    with open(os.path.join("logs", "socid"), "wb") as wf:
-                        wf.write(hexlify(socid))
-                if self.display:
-                    if socid != b"":
-                        self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
-        else:
-            meid = self.get_meid()
-            if len(meid) >= 16:
-                with open(os.path.join("logs", "meid"), "wb") as wf:
-                    wf.write(hexlify(meid))
+        meid = self.get_meid()
+        if len(meid) >= 16:
+            with open(os.path.join("logs", "meid"), "wb") as wf:
+                wf.write(hexlify(meid))
+        if self.display:
+            if meid != b"":
+                self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
+        if readsocid:
+            socid = self.get_socid()
+            if len(socid) >= 16:
+                with open(os.path.join("logs", "socid"), "wb") as wf:
+                    wf.write(hexlify(socid))
             if self.display:
-                if meid != b"":
-                    self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
-            if readsocid:
-                socid = self.get_socid()
-                if len(socid) >= 16:
-                    with open(os.path.join("logs", "socid"), "wb") as wf:
-                        wf.write(hexlify(socid))
-                if self.display:
-                    if socid != b"":
-                        self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
+                if socid != b"":
+                    self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
 
         return True
 

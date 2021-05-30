@@ -130,18 +130,17 @@ class PLTools(metaclass=LogBase):
 
     def crash(self, mode=0):
         self.info("Crashing da...")
-        if mode == 1:
-            self.mtk.preloader.send_da(0, 0x100, 0x100, b'\x00' * 0x100)
-        elif mode == 2:
-            self.mtk.preloader.read32(0, 0x100)
-        elif mode == 0:
-            try:
+        try:
+            if mode == 1:
+                self.mtk.preloader.send_da(0, 0x100, 0x100, b'\x00' * 0x100)
+            elif mode == 2:
+                self.mtk.preloader.read32(0, 0x100)
+            elif mode == 0:
                 payload = b'\x00\x01\x9F\xE5\x10\xFF\x2F\xE1' + b'\x00' * 0x110
                 self.mtk.preloader.send_da(0x0, len(payload), 0x0, payload)
                 self.mtk.preloader.jump_da(0x0)
-            except Exception as e:
-                self.debug(str(e))
-                pass
+        except:
+            pass
 
     def crasher(self, mtk, enforcecrash):
         plt = PLTools(mtk, self.__logger.level)

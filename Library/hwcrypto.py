@@ -34,7 +34,11 @@ class hwcrypto(metaclass=LogBase):
         self.read32 = setup.read32
         self.write32 = setup.write32
 
-    def aes_hwcrypt(self, data, iv=None, encrypt=True, mode="cbc", btype="sej"):
+    def aes_hwcrypt(self, data, iv=None, encrypt=True, otp=None, mode="cbc", btype="sej"):
+        if otp==None:
+            otp=32*b"\00"
+        else:
+            otp=bytes.fromhex(otp)
         if btype == "sej":
             if encrypt:
                 if mode == "cbc":
@@ -43,7 +47,7 @@ class hwcrypto(metaclass=LogBase):
                 if mode == "cbc":
                     return self.sej.hw_aes128_cbc_encrypt(buf=data, encrypt=False)
             if mode=="rpmb":
-                return self.sej.generate_rpmb(meid=data)
+                return self.sej.generate_rpmb(meid=data, otp=otp)
         elif btype == "gcpu":
             addr = self.setup.da_payload_addr
             if mode == "ebc":

@@ -19,10 +19,16 @@ class Storage:
 class DaStorage:
     MTK_DA_STORAGE_EMMC = 0x1
     MTK_DA_STORAGE_SDMMC = 0x2
-    MTK_DA_STORAGE_NAND = 0x3
-    MTK_DA_STORAGE_NOR = 0x4
-    MTK_DA_STORAGE_UFS = 0x5
-
+    MTK_DA_STORAGE_UFS = 0x30
+    MTK_DA_STORAGE_NAND = 0x10
+    MTK_DA_STORAGE_NAND_SLC = 0x11
+    MTK_DA_STORAGE_NAND_MLC = 0x12
+    MTK_DA_STORAGE_NAND_TLC = 0x13
+    MTK_DA_STORAGE_NAND_AMLC = 0x14
+    MTK_DA_STORAGE_NAND_SPI = 0x15
+    MTK_DA_STORAGE_NOR = 0x20
+    MTK_DA_STORAGE_NOR_SERIAL = 0x21
+    MTK_DA_STORAGE_NOR_PARALLEL = 0x22
 
 class EMMC_PartitionType:
     MTK_DA_EMMC_PART_BOOT1 = 1
@@ -33,18 +39,34 @@ class EMMC_PartitionType:
     MTK_DA_EMMC_PART_GP3 = 6
     MTK_DA_EMMC_PART_GP4 = 7
     MTK_DA_EMMC_PART_USER = 8
+    MTK_DA_EMMC_PART_END = 9
+    MTK_DA_EMMC_BOOT1_BOOT2 = 10
 
 class UFS_PartitionType:
     UFS_LU0 = 0
     UFS_LU1 = 1
     UFS_LU2 = 2
-    UFS_LU0_LU1 = 3
+    UFS_LU3 = 3
+    UFS_LU4 = 4
+    UFS_LU5 = 5
+    UFS_LU6 = 6
+    UFS_LU7 = 7
+    UFS_LU8 = 8
 
 class Memory:
     M_EMMC = 1
     M_NAND = 2
     M_NOR = 3
 
+class NandCellUsage:
+    CELL_UNI = 0,
+    CELL_BINARY = 1
+    CELL_TRI = 2
+    CELL_QUAD = 3
+    CELL_PENTA = 4
+    CELL_HEX = 5
+    CELL_HEPT = 6
+    CELL_OCT = 7
 
 entry_region = [
     ('m_buf', 'I'),
