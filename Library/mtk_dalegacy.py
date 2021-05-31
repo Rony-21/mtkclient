@@ -810,8 +810,63 @@ class DALegacy(metaclass=LogBase):
         return self.sdmmc_write_data(addr=addr, length=length, filename=filename, parttype=parttype, display=display)
 
     def formatflash(self, addr, length, parttype=None, display=True):
-        #return self.sdmmc_format_data(addr=addr, length=length, parttype=parttype, display=display)
-        return False
+        if parttype is None or parttype == "user" or parttype == "":
+            length = min(length, self.emmc["m_emmc_ua_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
+        elif parttype == "boot1":
+            length = min(length, self.emmc["m_emmc_boot1_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT1
+        elif parttype == "boot2":
+            length = min(length, self.emmc["m_emmc_boot2_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT2
+        elif parttype == "gp1":
+            length = min(length, self.emmc["m_emmc_gp_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP1
+        elif parttype == "gp2":
+            length = min(length, self.emmc["m_emmc_gp_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP2
+        elif parttype == "gp3":
+            length = min(length, self.emmc["m_emmc_gp_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP3
+        elif parttype == "gp4":
+            length = min(length, self.emmc["m_emmc_gp_size"])
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP4
+        elif parttype == "rpmb":
+            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB
+        self.check_usb_cmd()
+        if self.daconfig.flashtype == "emmc":
+            self.sdmmc_switch_part(parttype)
+            self.usbwrite(self.Cmd.FORMAT_CMD)  # D6
+            self.usbwrite(b"\x02")  # Storage-Type: EMMC
+            self.usbwrite(b"\x00")  # 0x00 Nutil erase
+            self.usbwrite(b"\x00")  # Validation false
+            self.usbwrite(b"\x00")  # NUTL_ADDR_LOGICAL
+            self.usbwrite(pack(">Q", addr))
+            self.usbwrite(pack(">Q", length))
+            progress=0
+            while progress!=100:
+                ack = self.usbread(1)[0]
+                if ack is not self.Rsp.ACK[0]:
+                    self.error(f"Error on sending emmc read command, response: {hex(ack)}")
+                    exit(1)
+                ack = self.usbread(1)[0]
+                if ack is not self.Rsp.ACK[0]:
+                    self.error(f"Error on sending emmc read command, response: {hex(ack)}")
+                    exit(1)
+                data = self.usbread(4)[0] # PROGRESS_INIT
+                progress = self.usbread(1)[0]
+                self.usbwrite(b"\x5A")  # Send ACK
+                if progress == 0x64:
+                    ack = self.usbread(1)[0]
+                    if ack is not self.Rsp.ACK[0]:
+                        self.error(f"Error on sending emmc read command, response: {hex(ack)}")
+                        exit(1)
+                    ack = self.usbread(1)[0]
+                    if ack is not self.Rsp.ACK[0]:
+                        self.error(f"Error on sending emmc read command, response: {hex(ack)}")
+                        exit(1)
+                    return True
+            return False
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
         if parttype is None or parttype == "user" or parttype == "":
