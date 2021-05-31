@@ -260,13 +260,13 @@ hwconfig = {
         damode=damodes.DEFAULT,  #
         dacode=0x6577,
         name="MT6577"),
-    0x6580: chipconfig(  # var1
+    0x6580: chipconfig(var1=0xAC,
         watchdog=0x10007000,
         uart=0x11005000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
         pl_payload_addr=0x80001000,
-        # no gcpu_base
+        # no gcpu_base 
         sej_base=0x1000A000,
         # dxcc_base
         cqdma_base=0x1020AC00,
