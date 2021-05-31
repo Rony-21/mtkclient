@@ -72,7 +72,6 @@ class DAXFlash(metaclass=LogBase):
         SET_RSC_INFO = 0x02000D
         SET_UPDATE_FW = 0x020010
         SET_UFS_CONFIG = 0x020011
-LU
         START_DL_INFO = 0x080001
         END_DL_INFO = 0x080002
         ACT_LOCK_OTP_ZONE = 0x080003
