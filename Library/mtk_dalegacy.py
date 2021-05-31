@@ -815,7 +815,7 @@ class DALegacy(metaclass=LogBase):
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
         if parttype is None or parttype == "user" or parttype == "":
-            length = min(length, self.emmc["m_emmc_gp_size"])
+            length = min(length, self.emmc["m_emmc_ua_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
         elif parttype == "boot1":
             length=min(length,self.emmc["m_emmc_boot1_size"])
@@ -850,7 +850,7 @@ class DALegacy(metaclass=LogBase):
             self.usbwrite(pack(">I", packetsize))
             ack = self.usbread(1)[0]
             if ack is not self.Rsp.ACK[0]:
-                self.error(f"Error on sending read command, response: {hex(ack)}")
+                self.error(f"Error on sending emmc read command, response: {hex(ack)}")
                 exit(1)
             self.daconfig.readsize = self.daconfig.flashsize
         elif self.daconfig.flashtype == "nand":
@@ -863,7 +863,7 @@ class DALegacy(metaclass=LogBase):
             self.usbwrite(pack(">I", 0))
             ack = self.usbread(1)[0]
             if ack is not self.Rsp.ACK:
-                self.error(f"Error on sending read command, response: {hex(ack)}")
+                self.error(f"Error on sending nand read command, response: {hex(ack)}")
                 exit(1)
             self.daconfig.pagesize = unpack(">I", self.usbread(4))[0]
             self.daconfig.sparesize = unpack(">I", self.usbread(4))[0]
