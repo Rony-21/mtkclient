@@ -2,6 +2,7 @@
 import os
 import logging
 import sys
+import time
 import argparse
 from binascii import hexlify
 from struct import pack, unpack
@@ -13,6 +14,15 @@ from config.brom_config import Mtk_Config
 
 
 class Stage2(metaclass=LogBase):
+    def init_emmc(self):
+        self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+        self.cdc.usbwrite(pack(">I", 0x6000))
+        time.sleep(5)
+        if unpack("<I", self.cdc.usbread(4, 4))[0]==0xD1D1D1D1:
+            return True
+        self.emmc_inited = True
+        return False
+
     def read32(self, addr, dwords=1):
         result = []
         for pos in range(dwords):
@@ -56,7 +66,7 @@ class Stage2(metaclass=LogBase):
         self.info = self.__logger.info
         self.error = self.__logger.error
         self.warning = self.__logger.warning
-
+        self.emmc_inited = False
         # Setup HW Crypto chip variables
         setup = crypto_setup()
         with open(os.path.join("logs", "hwcode"), "rb") as rf:
@@ -95,6 +105,8 @@ class Stage2(metaclass=LogBase):
             self.cdc.close()
 
     def readflash(self, type: int, start, length, display=False, filename: str = None):
+        if not self.emmc_inited:
+            self.init_emmc()
         wf = None
         buffer = bytearray()
         if filename is not None:
@@ -297,6 +309,10 @@ class Stage2(metaclass=LogBase):
             print_progress(100, 100, prefix='Complete: ', suffix=filename, bar_length=50)
         print("Done")
 
+    def hwkey(self,type,data=b"",otp=None,mode="dxcc"):
+        data = self.hwcrypto.aes_hwcrypt(data=data, encrypt=False, mode=type, btype=mode, otp=otp)
+        return data
+
     def reboot(self):
         self.cdc.usbwrite(pack(">I", 0xf00dd00d))
         self.cdc.usbwrite(pack(">I", 0x3000))
@@ -339,7 +355,7 @@ def showcommands():
 
 def main():
     parser = argparse.ArgumentParser(description=info)
-    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite, keys")
+    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite")
     parser.add_argument('--reverse', dest='reverse', action="store_true",
                         help='Reverse byte order (example: rpmb command)')
     parser.add_argument('--length', dest='length', type=str,
@@ -348,14 +364,8 @@ def main():
                         help='Start offset to dump')
     parser.add_argument('--data', dest='data', type=str,
                         help='Data to write')
-    parser.add_argument('--mode', dest='mode', type=str,
-                        help='Mode for keys (dxcc,sej,gcpu)')
-    parser.add_argument('--otp', dest='otp', type=str,
-                        help='OTP for keys (dxcc,sej,gcpu)')
     parser.add_argument('--filename', dest='filename', type=str,
                         help='Read from / save to filename')
-    parser.add_argument('--meid', type=str,
-                        help='MEID (hex) as previously extracted from device')
     args = parser.parse_args()
     cmd = args.cmd
     if cmd not in cmds:
