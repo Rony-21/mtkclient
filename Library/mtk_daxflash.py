@@ -15,6 +15,8 @@ from Library.partition import Partition
 class DAXFlash(metaclass=LogBase):
     class Cmd:
         MAGIC = 0xFEEEEEEF
+        SYNC_SIGNAL = 0x434E5953
+
         UNKNOWN = 0x010000
         DOWNLOAD = 0x010001
         UPLOAD = 0x010002
@@ -35,7 +37,21 @@ class DAXFlash(metaclass=LogBase):
         SETUP_ENVIRONMENT = 0x010100
         SETUP_HW_INIT_PARAMS = 0x010101
 
-        SYNC_SIGNAL = 0x434E5953
+        SET_BMT_PERCENTAGE = 0x020001
+        SET_BATTERY_OPT = 0x020002
+        SET_CHECKSUM_LEVEL = 0x020003
+        SET_RESET_KEY = 0x020004
+        SET_HOST_INFO = 0x020005
+        SET_META_BOOT_MODE = 0x020006
+        SET_EMMC_HWRESET_PIN = 0x020007
+        SET_GENERATE_GPX = 0x020008
+        SET_REGISTER_VALUE = 0x020009
+        SET_EXTERNAL_SIG = 0x02000A
+        SET_REMOTE_SEC_POLICY = 0x02000B
+        SET_ALL_IN_ONE_SIG = 0x02000C
+        SET_RSC_INFO = 0x02000D
+        SET_UPDATE_FW = 0x020010
+        SET_UFS_CONFIG = 0x020011
 
         GET_EMMC_INFO = 0x040001
         GET_NAND_INFO = 0x040002
@@ -56,36 +72,21 @@ class DAXFlash(metaclass=LogBase):
         GET_EXPIRE_DATE = 0x040011
         GET_DRAM_TYPE = 0x040012
         GET_DEV_FW_INFO = 0x040013
+        GET_HRID = 0x040014
+        GET_ERROR_DETAIL = 0x040015
 
-        SET_BMT_PERCENTAGE = 0x020001
-        SET_BATTERY_OPT = 0x020002
-        SET_CHECKSUM_LEVEL = 0x020003
-        SET_RESET_KEY = 0x020004
-        SET_HOST_INFO = 0x020005
-        SET_META_BOOT_MODE = 0x020006
-        SET_EMMC_HWRESET_PIN = 0x020007
-        SET_GENERATE_GPX = 0x020008
-        SET_REGISTER_VALUE = 0x020009
-        SET_EXTERNAL_SIG = 0x02000A
-        SET_REMOTE_SEC_POLICY = 0x02000B
-        SET_ALL_IN_ONE_SIG = 0x02000C
-        SET_RSC_INFO = 0x02000D
-        SET_UPDATE_FW = 0x020010
-        SET_UFS_CONFIG = 0x020011
         START_DL_INFO = 0x080001
         END_DL_INFO = 0x080002
         ACT_LOCK_OTP_ZONE = 0x080003
         DISABLE_EMMC_HWRESET_PIN = 0x080004
+        CC_OPTIONAL_DOWNLOAD_ACT = 0x800005
         DA_STOR_LIFE_CYCLE_CHECK = 0x080007
-
-        RPMB_WRITE = 0x0C0003 # UFS
-        RPMB_READ = 0x0C0005 # UFS
 
         UNKNOWN_CTRL_CODE = 0x0E0000
         CTRL_STORAGE_TEST = 0x0E0001
         CTRL_RAM_TEST = 0x0E0002
         DEVICE_CTRL_READ_REGISTER = 0x0E0003
-        CC_OPTIONAL_DOWNLOAD_ACT = 0x800005
+
 
     class ChecksumAlgorithm:
         PLAIN = 0
@@ -607,7 +608,7 @@ class DAXFlash(metaclass=LogBase):
             return False
         storage, parttype, length = part_info
 
-        if parttype==EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB:
+        if self.cmd_read_data(addr=addr, size=length, storage=storage, parttype=parttype):
             if display:
                 print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
             old = 0
@@ -616,13 +617,9 @@ class DAXFlash(metaclass=LogBase):
                 try:
                     with open(filename, "wb") as wf:
                         while bytestoread > 0:
-                            self.send(self.Cmd.RPMB_READ)
-                            self.send(pack("<I",0x0))
-                            self.send(pack("<I",self.addr_to_block(addr,0x100)))
-                            if self.status() != 0:
-                                break
                             magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
                             tmp = self.usbread(slength, slength)
+                            self.ack()
                             bytestoread -= len(tmp)
                             if display:
                                 prog = (length - bytestoread) / length * 100
@@ -631,12 +628,14 @@ class DAXFlash(metaclass=LogBase):
                                                    suffix='Complete, Sector:' + hex(length - bytestoread),
                                                    bar_length=50)
                                     old = round(prog, 1)
-                            if addr%0x100:
-                                pos=addr-(addr//0x100*0x100)
-                            else:
-                                pos=0
-                            wf.write(tmp[pos:])
-                            addr=self.addr_to_block(addr,0x100)+0x100
+
+                            #print("A")
+                            #time.sleep(0.01)
+                            if self.status() != 0:
+                                break
+                            #print("S")
+                            wf.write(tmp)
+
                 except Exception as err:
                     self.error("Couldn't write to " + filename + ". Error: " + str(err))
                     return False
@@ -645,86 +644,23 @@ class DAXFlash(metaclass=LogBase):
                 return True
             else:
                 buffer = bytearray()
-                while bytestoread > 0:
-                    self.send(self.Cmd.RPMB_READ)
-                    self.send(pack("<I", 0x0))
-                    self.send(pack("<I", self.addr_to_block(addr, 0x100)))
+                while length > 0:
+                    tmp = self.recv()
+                    buffer.extend(tmp)
+                    self.ack()
                     if self.status() != 0:
                         break
-                    magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
-                    tmp = self.usbread(slength, slength)
-                    bytestoread -= len(tmp)
                     if display:
                         prog = (length - bytestoread) / length * 100
                         if round(prog, 1) > old:
                             print_progress(prog, 100, prefix='Progress:',
-                                           suffix='Complete, Sector:' + hex(length - bytestoread),
-                                           bar_length=50)
+                                           suffix='Complete, Sector:' + hex(length - bytestoread), bar_length=50)
                             old = round(prog, 1)
-                    if addr % 0x100:
-                        pos = addr - (addr // 0x100 * 0x100)
-                    else:
-                        pos = 0
-                    buffer.extend(tmp[pos:])
-                    addr = self.addr_to_block(addr, 0x100) + 0x100
+                    length -= len(tmp)
                 if display:
                     print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
                 return buffer
-            return False
-        else:
-            if self.cmd_read_data(addr=addr, size=length, storage=storage, parttype=parttype):
-                if display:
-                    print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-                old = 0
-                bytestoread = length
-                if filename != "":
-                    try:
-                        with open(filename, "wb") as wf:
-                            while bytestoread > 0:
-                                magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
-                                tmp = self.usbread(slength, slength)
-                                self.ack()
-                                bytestoread -= len(tmp)
-                                if display:
-                                    prog = (length - bytestoread) / length * 100
-                                    if round(prog, 1) > old:
-                                        print_progress(prog, 100, prefix='Progress:',
-                                                       suffix='Complete, Sector:' + hex(length - bytestoread),
-                                                       bar_length=50)
-                                        old = round(prog, 1)
-
-                                #print("A")
-                                #time.sleep(0.01)
-                                if self.status() != 0:
-                                    break
-                                #print("S")
-                                wf.write(tmp)
-
-                    except Exception as err:
-                        self.error("Couldn't write to " + filename + ". Error: " + str(err))
-                        return False
-                    if display:
-                        print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-                    return True
-                else:
-                    buffer = bytearray()
-                    while length > 0:
-                        tmp = self.recv()
-                        buffer.extend(tmp)
-                        self.ack()
-                        if self.status() != 0:
-                            break
-                        if display:
-                            prog = (length - bytestoread) / length * 100
-                            if round(prog, 1) > old:
-                                print_progress(prog, 100, prefix='Progress:',
-                                               suffix='Complete, Sector:' + hex(length - bytestoread), bar_length=50)
-                                old = round(prog, 1)
-                        length -= len(tmp)
-                    if display:
-                        print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-                    return buffer
-            return False
+        return False
 
     def close(self):
         if self.send(self.Cmd.SHUTDOWN):

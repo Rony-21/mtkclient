@@ -313,6 +313,26 @@ class Stage2(metaclass=LogBase):
         data = self.hwcrypto.aes_hwcrypt(data=data, encrypt=False, mode=type, btype=mode, otp=otp)
         return data
 
+    def keys(self,data=b"",otp=None,mode="dxcc"):
+        # self.hwcrypto.disable_range_blacklist("cqdma",self.cmd_C8)
+        if mode=="dxcc":
+            self.hwcrypto.disable_hypervisor()
+            rpmbkey = self.hwkey(type="rpmb")
+            fdekey = self.hwkey(type="fde")
+            tfdekey = self.hwkey(type="t-fde")
+            platkey,provkey = self.hwkey(type="prov")
+            print("RPMB: " + hexlify(rpmbkey).decode('utf-8'))
+            print("FDE : " + hexlify(fdekey).decode('utf-8'))
+            print("TFDE: " + hexlify(tfdekey).decode('utf-8'))
+            print("Platform: " + hexlify(platkey).decode('utf-8'))
+            print("Provisioning: " + hexlify(provkey).decode('utf-8'))
+        elif mode=="sej":
+            rpmbkey = self.hwkey(type="rpmb",data=data,otp=otp,mode="sej")
+            print("RPMB: " + hexlify(rpmbkey).decode('utf-8'))
+        elif mode=="dxcc_sha256":
+            sha256val=self.hwkey(type="sha256", data=data, mode="dxcc")
+            print("SHA256: "+hexlify(sha256val))
+
     def reboot(self):
         self.cdc.usbwrite(pack(">I", 0xf00dd00d))
         self.cdc.usbwrite(pack(">I", 0x3000))
@@ -339,6 +359,7 @@ cmds = {
     "reboot": 'Reboot phone',
     "memread": "Read memory [Example: memread --start 0 --length 0x10]",
     "memwrite": "Write memory [Example: memwrite --start 0x200000 --data 11223344",
+    "keys": "Extract rpmb and fde key"
 }
 
 info = "MTK Stage2 client (c) B.Kerler 2021"
@@ -355,7 +376,7 @@ def showcommands():
 
 def main():
     parser = argparse.ArgumentParser(description=info)
-    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite")
+    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite, keys")
     parser.add_argument('--reverse', dest='reverse', action="store_true",
                         help='Reverse byte order (example: rpmb command)')
     parser.add_argument('--length', dest='length', type=str,
@@ -364,8 +385,14 @@ def main():
                         help='Start offset to dump')
     parser.add_argument('--data', dest='data', type=str,
                         help='Data to write')
+    parser.add_argument('--mode', dest='mode', type=str,
+                        help='Mode for keys (dxcc,sej,gcpu)')
+    parser.add_argument('--otp', dest='otp', type=str,
+                        help='OTP for keys (dxcc,sej,gcpu)')
     parser.add_argument('--filename', dest='filename', type=str,
                         help='Read from / save to filename')
+    parser.add_argument('--meid', type=str,
+                        help='MEID (hex) as previously extracted from device')
     args = parser.parse_args()
     cmd = args.cmd
     if cmd not in cmds:
@@ -409,6 +436,22 @@ def main():
                 print(f"Successfully wrote data to {hex(start)}.")
             else:
                 print(f"Failed to write data to {hex(start)}.")
+        elif cmd == "keys":
+            if args.mode is None:
+                print("Option --mode is needed")
+                exit(0)
+            if args.mode=="sej":
+                if not args.meid:
+                    print("Option --meid is needed")
+                    exit(0)
+                #if not args.otp:
+                #    print("Option --otp is needed")
+                #    exit(0)
+                data = bytes.fromhex(args.meid)
+            else:
+                data=b""
+            #otp_hisense=bytes.fromhex("486973656E736500000000000000000000000000000000000000000000000000")
+            st2.keys(data=data,mode=args.mode,otp=args.otp)
         elif cmd == "reboot":
             st2.reboot()
     st2.close()

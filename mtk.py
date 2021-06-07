@@ -675,6 +675,11 @@ class Main(metaclass=LogBase):
                 for partition in partitions:
                     partfilename = filenames[i]
                     i += 1
+                    if partition=="gpt":
+                        mtk.daloader.readflash(addr=0,
+                                               length=0x16000,
+                                               filename=partfilename, parttype=parttype)
+                        continue
                     res = mtk.daloader.detect_partition(self.args, partition, parttype)
                     if res[0]:
                         rpartition = res[1]
@@ -808,6 +813,12 @@ class Main(metaclass=LogBase):
                 for partition in partitions:
                     partfilename = filenames[i]
                     i += 1
+                    if partition=="gpt":
+                        mtk.daloader.writeflash(addr=0,
+                                                length=os.stat(partfilename).st_size,
+                                                filename=partfilename,
+                                                partitionname=partition, parttype=parttype)
+                        continue
                     res = mtk.daloader.detect_partition(self.args, partition, parttype)
                     if res[0]:
                         rpartition = res[1]

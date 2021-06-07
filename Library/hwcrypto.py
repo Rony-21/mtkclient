@@ -64,6 +64,8 @@ class hwcrypto(metaclass=LogBase):
                 return self.dxcc.generate_trustonic_fde()
             elif mode == "prov":
                 return self.dxcc.generate_provision_key()
+            elif mode == "sha256":
+                return self.dxcc.generate_sha256(data=data)
         else:
             self.error("Unknown aes_hwcrypt type: " + btype)
             self.error("aes_hwcrypt supported types are: sej")
