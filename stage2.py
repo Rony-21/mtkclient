@@ -263,6 +263,8 @@ class Stage2(metaclass=LogBase):
             return False
 
     def rpmb(self, start, length, filename, reverse=False):
+        if not self.emmc_inited:
+            self.init_emmc()
         if start == 0:
             start = 0
         else:
