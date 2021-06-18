@@ -773,7 +773,7 @@ hwconfig = {
         damode=damodes.XFLASH,
         dacode=0x6833,
         name="MT6833"),
-    0x996: chipconfig(  # var1
+    0x996: chipconfig(var1=0xA,
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
@@ -783,10 +783,12 @@ hwconfig = {
         cqdma_base=0x10212000,
         sej_base=0x1000a000,  # hacc
         ap_dma_mem=0x11000000 + 0x1A0,
-        # blacklist
+        blacklist=[(0x10284C, 0x0)],
         damode=damodes.XFLASH,
         dacode=0x6853,
-        name="MT6853"),
+        name="MT6853",
+        description="Dimensity 720 5G",
+        loader="mt6853_payload.bin"),
     0x886: chipconfig(var1=0xA,
                       watchdog=0x10007000,
                       uart=0x11002000,
