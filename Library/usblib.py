@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
+import logging
+
 import usb.core  # pyusb
 import usb.util
 import time
@@ -8,6 +10,7 @@ import inspect
 from enum import Enum
 from binascii import hexlify
 from Library.utils import *
+import traceback
 
 USB_DIR_OUT = 0  # to device
 USB_DIR_IN = 0x80  # to host
@@ -74,7 +77,15 @@ class usb_class(metaclass=LogBase):
             self.__logger.addHandler(fh)
 
     def verify_data(self, data, pre="RX:"):
-        self.debug("", stack_info=True)
+        if self.__logger.level==logging.DEBUG:
+            frame = inspect.currentframe()
+            stack_trace = traceback.format_stack(frame)
+            td=[]
+            for trace in stack_trace:
+                if not "verify_data" in trace and not "Port" in trace:
+                    td.append(trace)
+            self.debug(td[:-1])
+
         if isinstance(data, bytes) or isinstance(data, bytearray):
             if data[:5] == b"<?xml":
                 try:

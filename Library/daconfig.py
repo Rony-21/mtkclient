@@ -127,8 +127,8 @@ class DAconfig(metaclass=LogBase):
             if loader not in self.dasetup:
                 self.dasetup[loader] = []
             with open(loader, 'rb') as bootldr:
-                data = bootldr.read()
-                self.debug(hexlify(data).decode('utf-8'))
+                #data = bootldr.read()
+                #self.debug(hexlify(data).decode('utf-8'))
                 bootldr.seek(0x68)
                 count_da = unpack("<I", bootldr.read(4))[0]
                 for i in range(0, count_da):

@@ -25,8 +25,8 @@ Usage:
     mtk.py brute [--var1=var1] [--socid]
     mtk.py gettargetconfig [--debugmode] [--vid=vid] [--pid=pid] [--socid]
     mtk.py peek <offset> <length> [--filename=filename] [--preloader=preloader]
-    mtk.py stage [--stage2=filename] [--stage2addr=addr] [--stage1=filename] [--verifystage2] [--crash] [--socid]
-    mtk.py plstage [--filename=filename] [--preloader=preloader] [--startpartition=startpartition] [--socid]
+    mtk.py stage [--stage2=filename] [--stage2addr=addr] [--stage1=filename] [--verifystage2] [--crash] [--socid] [--debugmode]
+    mtk.py plstage [--filename=filename] [--preloader=preloader] [--startpartition=startpartition] [--socid] [--debugmode]
 
 Description:
     printgpt            # Print GPT Table information

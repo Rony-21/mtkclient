@@ -36,8 +36,6 @@ class Port(metaclass=LogBase):
 
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
-            if os.path.exists(logfilename):
-                os.remove(logfilename)
             fh = logging.FileHandler(logfilename)
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)

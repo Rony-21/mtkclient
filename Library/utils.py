@@ -86,8 +86,6 @@ def logsetup(self, logger, loglevel):
     self.warning = logger.warning
     if loglevel == logging.DEBUG:
         logfilename = os.path.join("logs", "log.txt")
-        if os.path.exists(logfilename):
-            os.remove(logfilename)
         fh = logging.FileHandler(logfilename)
         logger.addHandler(fh)
         logger.setLevel(logging.DEBUG)
