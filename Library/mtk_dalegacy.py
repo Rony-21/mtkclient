@@ -326,7 +326,7 @@ errortbl={
     3235:"S_DA_NOR_PROGRAM_REGION_IS_OVERLAP"
 }
 
-def error_to_string(errcode):
+def error_to_string(errorcode):
     if errorcode in errortbl:
         return errortbl[errorcode]
 
