@@ -102,7 +102,7 @@ class DAconfig(metaclass=LogBase):
         self.readsize = 0
         self.pagesize = 512
         self.da = None
-        self.dasetup = []
+        self.dasetup = {}
         self.loader = loader
         self.preloader = preloader
 
@@ -121,7 +121,11 @@ class DAconfig(metaclass=LogBase):
                 self.parse_da_loader(loader)
 
     def parse_da_loader(self, loader):
+        if not "MTK_AllInOne_DA" in loader:
+            return True
         try:
+            if loader not in self.dasetup:
+                self.dasetup[loader] = []
             with open(loader, 'rb') as bootldr:
                 data = bootldr.read()
                 self.debug(hexlify(data).decode('utf-8'))
@@ -137,7 +141,7 @@ class DAconfig(metaclass=LogBase):
                     for m in range(0, count):
                         entry_tmp = read_object(bootldr.read(20), entry_region)
                         da.append(entry_tmp)
-                    self.dasetup.append(da)
+                    self.dasetup[loader].append(da)
                 return True
         except Exception as e:
             self.error("Couldn't open loader: " + loader + ". Reason: " + str(e))
@@ -145,13 +149,14 @@ class DAconfig(metaclass=LogBase):
 
     def setup(self):
         dacode = self.config.chipconfig.dacode
-        for setup in self.dasetup:
-            if setup[0]["hw_code"] == dacode:
-                if setup[0]["hw_version"] <= self.config.hwver:
-                    if setup[0]["sw_version"] <= self.config.swver:
-                        self.da = setup
-                        if self.loader is None:
-                            self.loader = self.da[0]["loader"]
+        for loader in self.dasetup:
+            for setup in self.dasetup[loader]:
+                if setup[0]["hw_code"] == dacode:
+                    if setup[0]["hw_version"] <= self.config.hwver:
+                        if setup[0]["sw_version"] <= self.config.swver:
+                            if self.loader is None:
+                                self.da = setup
+                                self.loader = loader
 
         if self.da is None:
             self.error("No da config set up")

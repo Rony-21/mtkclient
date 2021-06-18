@@ -11,6 +11,7 @@ from Library.utils import LogBase
 from Library.utils import print_progress
 from Library.hwcrypto import crypto_setup, hwcrypto
 from config.brom_config import Mtk_Config
+import hashlib
 
 
 class Stage2(metaclass=LogBase):
@@ -18,9 +19,18 @@ class Stage2(metaclass=LogBase):
         self.cdc.usbwrite(pack(">I", 0xf00dd00d))
         self.cdc.usbwrite(pack(">I", 0x6000))
         time.sleep(5)
-        if unpack("<I", self.cdc.usbread(4, 4))[0]==0xD1D1D1D1:
+        if unpack("<I", self.cdc.usbread(4, 4))[0] == 0xD1D1D1D1:
             return True
         self.emmc_inited = True
+        return False
+
+    def jump(self, addr):
+        self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+        self.cdc.usbwrite(pack(">I", 0x4001))
+        self.cdc.usbwrite(pack(">I", addr))
+        time.sleep(5)
+        if unpack("<I", self.cdc.usbread(4, 4))[0] == 0xD0D0D0D0:
+            return True
         return False
 
     def read32(self, addr, dwords=1):
@@ -311,29 +321,30 @@ class Stage2(metaclass=LogBase):
             print_progress(100, 100, prefix='Complete: ', suffix=filename, bar_length=50)
         print("Done")
 
-    def hwkey(self,type,data=b"",otp=None,mode="dxcc"):
-        data = self.hwcrypto.aes_hwcrypt(data=data, encrypt=False, mode=type, btype=mode, otp=otp)
-        return data
-
-    def keys(self,data=b"",otp=None,mode="dxcc"):
+    def keys(self, data=b"", otp=None, mode="dxcc"):
         # self.hwcrypto.disable_range_blacklist("cqdma",self.cmd_C8)
-        if mode=="dxcc":
-            self.hwcrypto.disable_hypervisor()
-            rpmbkey = self.hwkey(type="rpmb")
-            fdekey = self.hwkey(type="fde")
-            tfdekey = self.hwkey(type="t-fde")
-            platkey,provkey = self.hwkey(type="prov")
+        if mode == "dxcc":
+            rpmbkey = self.hwcrypto.aes_hwcrypt(btype="dxcc",mode="rpmb")
+            fdekey = self.hwcrypto.aes_hwcrypt(btype="dxcc",mode="fde")
+            tfdekey = self.hwcrypto.aes_hwcrypt(btype="dxcc",mode="itrustee-fde")
+            platkey, provkey = self.hwcrypto.aes_hwcrypt(btype="dxcc",mode="prov")
             print("RPMB: " + hexlify(rpmbkey).decode('utf-8'))
             print("FDE : " + hexlify(fdekey).decode('utf-8'))
-            print("TFDE: " + hexlify(tfdekey).decode('utf-8'))
+            print("iTrustee-FDE: " + hexlify(tfdekey).decode('utf-8'))
             print("Platform: " + hexlify(platkey).decode('utf-8'))
             print("Provisioning: " + hexlify(provkey).decode('utf-8'))
-        elif mode=="sej":
-            rpmbkey = self.hwkey(type="rpmb",data=data,otp=otp,mode="sej")
+        elif mode == "sej":
+            rpmbkey = self.hwcrypto.aes_hwcrypt(mode="rpmb", data=data, otp=otp, btype="sej")
             print("RPMB: " + hexlify(rpmbkey).decode('utf-8'))
-        elif mode=="dxcc_sha256":
-            sha256val=self.hwkey(type="sha256", data=data, mode="dxcc")
-            print("SHA256: "+hexlify(sha256val))
+        elif mode == "sej_aes_decrypt":
+            dec_data = self.hwcrypto.aes_hwcrypt(mode="cbc", data=data, btype="sej", encrypt=False)
+            print("Data: " + hexlify(dec_data).decode('utf-8'))
+        elif mode == "sej_aes_encrypt":
+            enc_data = self.hwcrypto.aes_hwcrypt(mode="cbc", data=data, btype="sej", encrypt=False)
+            print("Data: " + hexlify(enc_data).decode('utf-8'))
+        elif mode == "dxcc_sha256":
+            sha256val = self.hwcrypto.aes_hwcrypt(mode="sha256", data=data, btype="dxcc")
+            print("SHA256: " + hexlify(sha256val).decode('utf-8'))
 
     def reboot(self):
         self.cdc.usbwrite(pack(">I", 0xf00dd00d))
@@ -442,18 +453,24 @@ def main():
             if args.mode is None:
                 print("Option --mode is needed")
                 exit(0)
-            if args.mode=="sej":
+            if args.mode == "sej":
                 if not args.meid:
                     print("Option --meid is needed")
                     exit(0)
-                #if not args.otp:
+                # if not args.otp:
                 #    print("Option --otp is needed")
                 #    exit(0)
                 data = bytes.fromhex(args.meid)
+            elif args.mode == "sej_aes_decrypt" or args.mode == "sej_aes_encrypt":
+                if not args.data:
+                    print("Option --data is needed")
+                    exit(0)
+                data = bytes.fromhex(args.data)
             else:
-                data=b""
-            #otp_hisense=bytes.fromhex("486973656E736500000000000000000000000000000000000000000000000000")
-            st2.keys(data=data,mode=args.mode,otp=args.otp)
+                data = b""
+            # otp_hisense=bytes.fromhex("486973656E736500000000000000000000000000000000000000000000000000")
+            # st2.jump(0x223449)
+            st2.keys(data=data, mode=args.mode, otp=args.otp)
         elif cmd == "reboot":
             st2.reboot()
     st2.close()

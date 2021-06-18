@@ -12,7 +12,7 @@ class chipconfig:
     def __init__(self, var1=None, watchdog=None, uart=None, brom_payload_addr=None,
                  da_payload_addr=None, pl_payload_addr=None, cqdma_base=None, sej_base=None, dxcc_base=None,
                  gcpu_base=None, ap_dma_mem=None, name="", description="", dacode=None,
-                 blacklist=(), damode=damodes.DEFAULT, loader=None):
+                 meid_addr=None, has_socid=False, blacklist=(), damode=damodes.DEFAULT, loader=None):
         self.var1 = var1
         self.watchdog = watchdog
         self.uart = uart
@@ -27,6 +27,8 @@ class chipconfig:
         self.description = description
         self.dacode = dacode
         self.blacklist = blacklist
+        self.meid_addr = meid_addr
+        self.has_socid = has_socid
         self.gcpu_base = gcpu_base
         self.dacode = dacode
         self.damode = damode
@@ -207,7 +209,7 @@ hwconfig = {
                        watchdog=0x10007000,
                        uart=0x11005000,
                        brom_payload_addr=0x10036A0,
-                       da_payload_addr=0x2007000,
+                       da_payload_addr=0x2008000,
                        pl_payload_addr=0x801E0000,
                        # gcpu_base
                        # sej_base
@@ -215,6 +217,8 @@ hwconfig = {
                        # cqdma_base
                        ap_dma_mem=0x11000000 + 0x19C,  # AP_P_DMA_I2C_1_MEM_ADDR
                        # blacklist
+                       meid_addr=0x11142C34,
+                       has_socid=False,
                        damode=damodes.DEFAULT,  #
                        dacode=0x6572,
                        name="MT6572",
@@ -266,12 +270,14 @@ hwconfig = {
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
         pl_payload_addr=0x80001000,
-        # no gcpu_base 
+        # no gcpu_base
         sej_base=0x1000A000,
         # dxcc_base
         cqdma_base=0x1020AC00,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_P_DMA_I2C_1_RX_MEM_ADDR
         blacklist=[(0x102764, 0x0)],
+        meid_addr=0x1030B4,
+        has_socid=False,
         damode=damodes.DEFAULT,
         dacode=0x6580,
         name="MT6580",
@@ -288,6 +294,8 @@ hwconfig = {
                        # no cqdma_base
                        ap_dma_mem=0x11000000 + 0x320,  # AP_DMA_I2C_0_RX_MEM_ADDR
                        blacklist=[(0x102788, 0x0)],
+                       meid_addr=0x1030CC,
+                       has_socid=False,
                        damode=damodes.DEFAULT,  #
                        dacode=0x6582,
                        name="MT6582/MT6574",
@@ -346,6 +354,8 @@ hwconfig = {
         # cqdma_base
         ap_dma_mem=0x11000000 + 0x1A0,
         blacklist=[(0x00102768, 0x0)],
+        meid_addr=0x1030A4,
+        has_socid=False,
         dacode=0x6595,
         damode=damodes.DEFAULT,  #
         name="MT6595"),
@@ -361,6 +371,8 @@ hwconfig = {
                       cqdma_base=0x10217C00,
                       ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_O_RX_MEM_ADDR
                       blacklist=[(0x00102760, 0x0), (0x00105704, 0x0)],
+                      meid_addr=0x1030B0,
+                      has_socid=False,
                       damode=damodes.DEFAULT,  #
                       dacode=0x6735,
                       name="MT6735/T",
@@ -377,6 +389,8 @@ hwconfig = {
                       cqdma_base=0x10217C00,
                       ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_O_RX_MEM_ADDR
                       blacklist=[(0x00102760, 0x0), (0x00105704, 0x0)],
+                      meid_addr=0x1030B0,
+                      has_socid=False,
                       damode=damodes.DEFAULT,  #
                       dacode=0x6735,
                       name="MT6737M",
@@ -394,6 +408,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x1a0,  # AP_DMA_I2C_1_RX_MEM_ADDR
                       blacklist=[(0x10282C, 0x0)],
+                      meid_addr=0x102AF8,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6739,
                       name="MT6739/MT6731",
@@ -425,6 +441,8 @@ hwconfig = {
         cqdma_base=0x10217C00,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_0_RX_MEM_ADDR
         blacklist=[(0x00102760, 0x0), (0x00105704, 0x0)],
+        meid_addr=0x1030B0,
+        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6753,
         name="MT6753",
@@ -492,6 +510,8 @@ hwconfig = {
                       cqdma_base=0x10212C00,
                       ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
                       blacklist=[(0x10276C, 0x0)],
+                      meid_addr=0x1030AC,
+                      has_socid=False,
                       damode=damodes.XFLASH,
                       dacode=0x6755,
                       name="MT6755/M/T/S",
@@ -508,6 +528,8 @@ hwconfig = {
                       cqdma_base=0x10212C00,
                       ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
                       blacklist=[(0x102774, 0x0)],
+                      meid_addr=0x1030B4,
+                      has_socid=False,
                       damode=damodes.XFLASH,
                       dacode=0x6757,
                       name="MT6757/MT6757D",
@@ -553,6 +575,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000a80 + 0x1a0,  # AP_DMA_I2C_CH0_RX_MEM_ADDR
                       blacklist=[(0x102828, 0x0)],
+                      meid_addr=0x102AF8,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6761,
                       name="MT6761/MT6762/MT3369/MT8766B",
@@ -569,6 +593,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000a80 + 0x1a0,
                       blacklist=[(0x102834, 0x0)],
+                      meid_addr=0x102B78,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6763,
                       name="MT6763",
@@ -586,6 +612,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x1a0,  # AP_DMA_I2C2_CH0_RX_MEM_ADDR
                       blacklist=[(0x102828, 0x0)],
+                      meid_addr=0x102AF8,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6765,
                       name="MT6765",
@@ -603,6 +631,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x1A0,
                       blacklist=[(0x10282C, 0x0)],
+                      meid_addr=0x102AF8,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6768,
                       name="MT6768",
@@ -620,6 +650,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x158,  # AP_DMA_I2C_1_RX_MEM_ADDR
                       blacklist=[(0x00102834, 0x0)],
+                      meid_addr=0x102B38,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6771,
                       name="MT6771/MT8385/MT8183/MT8666",
@@ -648,6 +680,8 @@ hwconfig = {
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x158,
         blacklist=[(0x102838, 0x0)],
+        meid_addr=0x102B38,
+        has_socid=True,
         damode=damodes.XFLASH,
         dacode=0x6779,
         name="MT6779",
@@ -665,6 +699,8 @@ hwconfig = {
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x158,
         blacklist=[(0x102838, 0x0)],
+        meid_addr=0x102B38,
+        has_socid=True,
         damode=damodes.XFLASH,
         dacode=0x6785,
         name="MT6785",
@@ -683,6 +719,8 @@ hwconfig = {
         cqdma_base=0x10212c00,
         ap_dma_mem=0x11000000 + 0x1A0,
         blacklist=[(0x102764, 0x0)],
+        meid_addr=0x1030A0,
+        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6795,
         name="MT6795",
@@ -699,6 +737,8 @@ hwconfig = {
                       cqdma_base=0x10212C00,
                       ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
                       blacklist=[(0x0010276C, 0x0), (0x00105704, 0x0)],
+                      meid_addr=0x1030AC,
+                      has_socid=False,
                       damode=damodes.XFLASH,
                       dacode=0x6797,
                       name="MT6797",
@@ -714,6 +754,8 @@ hwconfig = {
                       # no dxcc
                       sej_base=0x1000A000,
                       blacklist=[(0x00102870, 0x0)],
+                      meid_addr=0x1033B8,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6799,
                       name="MT6799",
@@ -756,6 +798,8 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x1A0,
                       blacklist=[(0x10284C, 0x0)],
+                      meid_addr=0x102B78,
+                      has_socid=True,
                       damode=damodes.XFLASH,
                       dacode=0x6873,
                       name="MT6873",
@@ -853,6 +897,8 @@ hwconfig = {
                        # no cqdma_base
                        ap_dma_mem=0x11000000 + 0x1A0,
                        blacklist=[(0x102870, 0x0)],
+                       meid_addr=0x1031CC,
+                       has_socid=False,
                        damode=damodes.DEFAULT,  #
                        dacode=0x8127,
                        name="MT8127/MT3367",
@@ -882,6 +928,8 @@ hwconfig = {
                        cqdma_base=0x10212C00,
                        ap_dma_mem=0x11000000 + 0x1A0,
                        blacklist=[(0x102868, 0x0), (0x001072DC, 0x0)],
+                       meid_addr=0x1031C0,
+                       has_socid=False,
                        damode=damodes.DEFAULT,  #
                        dacode=0x8163,
                        name="MT8163",
@@ -898,6 +946,8 @@ hwconfig = {
         cqdma_base=0x10212C00,
         ap_dma_mem=0x11000000 + 0x1A0,
         blacklist=[(0x102968,0x0)],
+        meid_addr=0x103478,
+        has_socid=True,
         damode=damodes.XFLASH,
         dacode=0x8167,
         name="MT8167/MT8516/MT8362",
@@ -926,6 +976,8 @@ hwconfig = {
                        # cqdma_base
                        ap_dma_mem=0x11000000 + 0x1A0,
                        blacklist=[(0x122774, 0x0)],
+                       meid_addr=0x1230B0,
+                       has_socid=False,
                        damode=damodes.DEFAULT,  #
                        dacode=0x8173,
                        name="MT8173",
@@ -1006,6 +1058,8 @@ hwconfig = {
                        # cqdma_base
                        ap_dma_mem=0x11000280 + 0x1A0,
                        blacklist=[(0x103048, 0x0)],
+                       meid_addr=0x1032B8,
+                       has_socid=False,
                        damode=damodes.XFLASH,
                        dacode=0x8695,
                        name="MT8695",
@@ -1105,6 +1159,10 @@ class Mtk_Config(metaclass=LogBase):
             self.chipconfig.damode = damodes.DEFAULT
         if self.chipconfig.dxcc_base is None:
             self.chipconfig.dxcc_base = 0x10210000
+        if self.chipconfig.meid_addr is None:
+            self.chipconfig.meid_addr = None
+        if self.chipconfig.has_socid is None:
+            self.chipconfig.has_socid = False
 
     def init_hwcode(self, hwcode):
         self.hwcode=hwcode
@@ -1174,9 +1232,9 @@ class Mtk_Config(metaclass=LogBase):
                 bmtpartsize = 0xA00000
                 bmtblockcount = 0x50
             elif self.flash == "emmc":
-                bmtflag = 1
-                bmtblockcount = 0xA8
-                bmtpartsize = 0x0
+                bmtflag = 0
+                bmtpartsize = 0xA8
+                bmtblockcount = 0x50
         elif hwcode in [0x6577, 0x6583, 0x6589]:
             if self.flash == "nand":
                 bmtflag = 0
@@ -1185,3 +1243,4 @@ class Mtk_Config(metaclass=LogBase):
         self.bmtflag = bmtflag
         self.bmtblockcount = bmtblockcount
         self.bmtpartsize = bmtpartsize
+        return bmtflag,bmtblockcount,bmtpartsize

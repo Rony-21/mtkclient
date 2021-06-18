@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
 import logging
+import time
+
 from Library.utils import LogBase, logsetup
 from Library.hwcrypto_gcpu import GCpu
 from Library.hwcrypto_dxcc import dxcc
@@ -34,11 +36,12 @@ class hwcrypto(metaclass=LogBase):
         self.read32 = setup.read32
         self.write32 = setup.write32
 
-    def aes_hwcrypt(self, data, iv=None, encrypt=True, otp=None, mode="cbc", btype="sej"):
-        if otp==None:
+    def aes_hwcrypt(self, data=b"", iv=None, encrypt=True, otp=None, mode="cbc", btype="sej"):
+        if otp is None:
             otp=32*b"\00"
         else:
-            otp=bytes.fromhex(otp)
+            if isinstance(otp,str):
+                otp=bytes.fromhex(otp)
         if btype == "sej":
             if encrypt:
                 if mode == "cbc":
@@ -50,7 +53,7 @@ class hwcrypto(metaclass=LogBase):
                 return self.sej.generate_rpmb(meid=data, otp=otp)
         elif btype == "gcpu":
             addr = self.setup.da_payload_addr
-            if mode == "ebc":
+            if mode == "ecb":
                 return self.gcpu.aes_read_ebc(data=data, encrypt=encrypt)
             if mode == "cbc":
                 if self.gcpu.aes_setup_cbc(addr=addr, data=data, iv=iv, encrypt=encrypt):
@@ -60,8 +63,8 @@ class hwcrypto(metaclass=LogBase):
                 return self.dxcc.generate_fde()
             elif mode == "rpmb":
                 return self.dxcc.generate_rpmb()
-            elif mode == "t-fde":
-                return self.dxcc.generate_trustonic_fde()
+            elif mode == "itrustee-fde":
+                return self.dxcc.generate_itrustee_fde()
             elif mode == "prov":
                 return self.dxcc.generate_provision_key()
             elif mode == "sha256":
@@ -70,6 +73,12 @@ class hwcrypto(metaclass=LogBase):
             self.error("Unknown aes_hwcrypt type: " + btype)
             self.error("aes_hwcrypt supported types are: sej")
             return bytearray()
+
+    def orval(self, addr, value):
+        self.write32(addr, self.read32(addr) | value)
+
+    def andval(self, addr, value):
+        self.write32(addr, self.read32(addr) & value)
 
     def disable_hypervisor(self):
         self.write32(0x1021a060,self.read32(0x1021a060)|0x1)

@@ -87,6 +87,248 @@ passinfo = [
 def crc_word(data, chs=0):
     return (sum(data) + chs) & 0xFFFF
 
+errortbl={
+    3000:"S_DA_INT_RAM_ERROR",
+    3001:"S_DA_EXT_RAM_ERROR",
+    3002:"S_DA_SETUP_DRAM_FAIL",
+    3003:"S_DA_SETUP_PLL_ERR",
+    3004:"S_DA_DRAM_NOT_SUPPORT",
+    3005:"S_DA_RAM_FLOARTING",
+    3006:"S_DA_RAM_UNACCESSABLE",
+    3007:"S_DA_RAM_ERROR",
+    3008:"S_DA_DEVICE_NOT_FOUND",
+    3009:"S_DA_NOR_UNSUPPORTED_DEV_ID",
+    3010:"S_DA_NAND_UNSUPPORTED_DEV_ID",
+    3011:"S_DA_NOR_FLASH_NOT_FOUND",
+    3012:"S_DA_NAND_FLASH_NOT_FOUND",
+    3013:"S_DA_SOC_CHECK_FAIL",
+    3014:"S_DA_NOR_PROGRAM_FAILED",
+    3015:"S_DA_NOR_ERASE_FAILED",
+    3016:"S_DA_NAND_PAGE_PROGRAM_FAILED",
+    3017:"S_DA_NAND_SPARE_PROGRAM_FAILED",
+    3018:"S_DA_NAND_HW_COPYBACK_FAILED",
+    3019:"S_DA_NAND_ERASE_FAILED",
+    3020:"S_DA_TIMEOUT",
+    3021:"S_DA_IN_PROGRESS",
+    3022:"S_DA_SUPERAND_ONLY_SUPPORT_PAGE_READ",
+    3023:"S_DA_SUPERAND_PAGE_READ_NOT_SUPPORT",
+    3024:"S_DA_SUPERAND_PAGE_PRGRAM_NOT_SUPPORT",
+    3025:"S_DA_SUPERAND_SPARE_PRGRAM_NOT_SUPPORT",
+    3026:"S_DA_SUPERAND_SPARE_READ_NOT_SUPPORT",
+    3027:"S_DA_SUPERAND_PAGE_SPARE_PRGRAM_NOT_SUPPORT",
+    3028:"S_DA_SUPERAND_COPYBACK_NOT_SUPPORT",
+    3029:"S_DA_NOR_CMD_SEQUENCE_ERR",
+    3030:"S_DA_NOR_BLOCK_IS_LOCKED",
+    3031:"S_DA_NAND_BLOCK_IS_LOCKED",
+    3032:"S_DA_NAND_BLOCK_DATA_UNSTABLE",
+    3033:"S_DA_NOR_BLOCK_DATA_UNSTABLE",
+    3034:"S_DA_NOR_VPP_RANGE_ERR",
+    3035:"S_DA_INVALID_BEGIN_ADDR",
+    3036:"S_DA_NOR_INVALID_ERASE_BEGIN_ADDR",
+    3037:"S_DA_NOR_INVALID_READ_BEGIN_ADDR",
+    3038:"S_DA_NOR_INVALID_PROGRAM_BEGIN_ADDR",
+    3039:"S_DA_INVALID_RANGE",
+    3040:"S_DA_NOR_PROGRAM_AT_ODD_ADDR",
+    3041:"S_DA_NOR_PROGRAM_WITH_ODD_LENGTH",
+    3042:"S_DA_NOR_BUFPGM_NO_SUPPORT",
+    3043:"S_DA_NAND_UNKNOWN_ERR",
+    3044:"S_DA_NAND_BAD_BLOCK",
+    3045:"S_DA_NAND_ECC_1BIT_CORRECT",
+    3046:"S_DA_NAND_ECC_2BITS_ERR",
+    3047:"S_DA_NAND_ECC_UNCORRECTABLE_ERROR",
+    3048:"S_DA_NAND_SPARE_CHKSUM_ERR",
+    3049:"S_DA_NAND_HW_COPYBACK_DATA_INCONSISTENT",
+    3050:"S_DA_NAND_INVALID_PAGE_INDEX",
+    3051:"S_DA_NFI_NOT_SUPPORT",
+    3052:"S_DA_NFI_CS1_NOT_SUPPORT",
+    3053:"S_DA_NFI_16BITS_IO_NOT_SUPPORT",
+    3054:"S_DA_NFB_BOOTLOADER_NOT_EXIST",
+    3055:"S_DA_NAND_NO_GOOD_BLOCK",
+    3056:"S_DA_BOOTLOADER_IS_TOO_LARGE",
+    3057:"S_DA_SIBLEY_REWRITE_OBJ_MODE_REGION",
+    3058:"S_DA_SIBLEY_WRITE_B_HALF_IN_CTRL_MODE_REGION",
+    3059:"S_DA_SIBLEY_ILLEGAL_CMD",
+    3060:"S_DA_SIBLEY_PROGRAM_AT_THE_SAME_REGIONS",
+    3061:"S_DA_UART_GET_DATA_TIMEOUT",
+    3062:"S_DA_UART_GET_CHKSUM_LSB_TIMEOUT",
+    3063:"S_DA_UART_GET_CHKSUM_MSB_TIMEOUT",
+    3064:"S_DA_UART_DATA_CKSUM_ERROR",
+    3065:"S_DA_UART_RX_BUF_FULL",
+    3066:"S_DA_FLASH_RECOVERY_BUF_NOT_ENOUGH",
+    3067:"S_DA_HANDSET_SEC_INFO_NOT_FOUND",
+    3068:"S_DA_HANDSET_SEC_INFO_MAC_VERIFY_FAIL",
+    3069:"S_DA_HANDSET_ROM_INFO_NOT_FOUND",
+    3070:"S_DA_HANDSET_FAT_INFO_NOT_FOUND",
+    3071:"S_DA_OPERATION_UNSUPPORT_FOR_NFB",
+    3072:"S_DA_BYPASS_POST_PROCESS",
+    3073:"S_DA_NOR_OTP_NOT_SUPPORT",
+    3074:"S_DA_NOR_OTP_EXIST",
+    3075:"S_DA_NOR_OTP_LOCKED",
+    3076:"S_DA_NOR_OTP_GETSIZE_FAIL",
+    3077:"S_DA_NOR_OTP_READ_FAIL",
+    3078:"S_DA_NOR_OTP_PROGRAM_FAIL",
+    3079:"S_DA_NOR_OTP_LOCK_FAIL",
+    3080:"S_DA_NOR_OTP_LOCK_CHECK_STATUS_FAIL",
+    3081:"S_DA_BLANK_FLASH",
+    3082:"S_DA_CODE_AREA_IS_BLANK",
+    3083:"S_DA_SEC_RO_AREA_IS_BLANK",
+    3084:"S_DA_NOR_OTP_UNLOCKED",
+    3085:"S_DA_UNSUPPORTED_BBCHIP",
+    3086:"S_DA_FAT_NOT_EXIST",
+    3087:"S_DA_EXT_SRAM_NOT_FOUND",
+    3088:"S_DA_EXT_DRAM_NOT_FOUND",
+    3089:"S_DA_MT_PIN_LOW",
+    3090:"S_DA_MT_PIN_HIGH",
+    3091:"S_DA_MT_PIN_SHORT",
+    3092:"S_DA_MT_BUS_ERROR",
+    3093:"S_DA_MT_ADDR_NOT_2BYTE_ALIGNMENT",
+    3094:"S_DA_MT_ADDR_NOT_4BYTE_ALIGNMENT",
+    3095:"S_DA_MT_SIZE_NOT_2BYTE_ALIGNMENT",
+    3096:"S_DA_MT_SIZE_NOT_4BYTE_ALIGNMENT",
+    3097:"S_DA_MT_DEDICATED_PATTERN_ERROR",
+    3098:"S_DA_MT_INC_PATTERN_ERROR",
+    3099:"S_DA_MT_DEC_PATTERN_ERROR",
+    3100:"S_DA_NFB_BLOCK_0_IS_BAD",
+    3101:"S_DA_CUST_PARA_AREA_IS_BLANK",
+    3102:"S_DA_ENTER_RELAY_MODE_FAIL",
+    3103:"S_DA_ENTER_RELAY_MODE_IS_FORBIDDEN_AFTER_META",
+    3104:"S_DA_NAND_PAGE_READ_FAILED",
+    3105:"S_DA_NAND_IMAGE_BLOCK_NO_EXIST",
+    3106:"S_DA_NAND_IMAGE_LIST_NOT_EXIST",
+    3107:"S_DA_MBA_RESOURCE_NO_EXIST_IN_TARGET",
+    3108:"S_DA_MBA_PROJECT_VERSION_NO_MATCH_WITH_TARGET",
+    3109:"S_DA_MBA_UPDATING_RESOURCE_NO_EXIST_IN_TARGET",
+    3110:"S_DA_MBA_UPDATING_RESOURCE_SIZE_EXCEED_IN_TARGET",
+    3111:"S_DA_NAND_BIN_SIZE_EXCEED_MAX_SIZE",
+    3112:"S_DA_NAND_EXCEED_CONTAINER_LIMIT",
+    3113:"S_DA_NAND_REACH_END_OF_FLASH",
+    3114:"S_DA_NAND_OTP_NOT_SUPPORT",
+    3115:"S_DA_NAND_OTP_EXIST",
+    3116:"S_DA_NAND_OTP_LOCKED",
+    3117:"S_DA_NAND_OTP_LOCK_FAIL",
+    3118:"S_DA_NAND_OTP_UNLOCKED",
+    3119:"S_DA_OTP_NOT_SUPPORT",
+    3120:"S_DA_OTP_EXIST",
+    3121:"S_DA_OTP_LOCKED",
+    3122:"S_DA_OTP_GETSIZE_FAIL",
+    3123:"S_DA_OTP_READ_FAIL",
+    3124:"S_DA_OTP_PROGRAM_FAIL",
+    3125:"S_DA_OTP_LOCK_FAIL",
+    3126:"S_DA_OTP_LOCK_CHECK_STATUS_FAIL",
+    3127:"S_DA_OTP_UNLOCKED",
+    3128:"S_DA_SEC_RO_ILLEGAL_MAGIC_TAIL",
+    3129:"S_DA_HANDSET_FOTA_INFO_NOT_FOUND",
+    3130:"S_DA_HANDSET_UA_INFO_NOT_FOUND",
+    3131:"S_DA_SB_FSM_INVALID_INFO",
+    3132:"S_DA_NFB_TARGET_DUAL_BL_PAIRED_VERSION_NOT_MATCHED_WITH_MAUI",
+    3133:"S_DA_NFB_TARGET_DUAL_BL_FEATURE_COMBINATION_NOT_MATCHED_WITH_MAUI",
+    3134:"S_DA_NFB_TARGET_IS_SINGLE_BL_BUT_PC_NOT",
+    3135:"S_DA_NFB_TARGET_IS_DUAL_BL_BUT_PC_NOT",
+    3136:"S_DA_NOR_TARGET_BL_PAIRED_VERSION_NOT_MATCHED_WITH_MAUI",
+    3137:"S_DA_NOR_TARGET_BL_FEATURE_COMBINATION_NOT_MATCHED_WITH_MAUI",
+    3138:"S_DA_NOR_TARGET_IS_NOT_NEW_BL_BUT_PC_IS",
+    3139:"S_DA_NOR_TARGET_IS_NEW_BL_BUT_PC_NOT",
+    3140:"S_DA_GEN_DA_VERSION_INFO_TEMP_ILB_FAIL",
+    3141:"S_DA_FLASH_NOT_FOUND",
+    3142:"S_DA_BOOT_CERT_NOT_EXIST",
+    3143:"S_DA_NAND_CODE_IMAGE_OVERLAP_FAT_REGION",
+    3144:"S_DA_DOWNLOAD_BOOTLOADER_FLASH_DEV_IS_NONE",
+    3145:"S_DA_DOWNLOAD_BOOTLOADER_FLASH_DEV_IS_NOT_SUPPORTED",
+    3146:"S_DA_DOWNLOAD_BOOTLOADER_BEGIN_ADDR_OVERLAPS_WITH_PREVIOUS_BOUNDARY",
+    3147:"S_DA_UPDATE_BOOTLOADER_EXIST_MAGIC_NOT_MATCHED",
+    3148:"S_DA_UPDATE_BOOTLOADER_FILE_TYPE_NOT_MATCHED",
+    3149:"S_DA_UPDATE_BOOTLOADER_FILE_SIZE_EXCEEDS_BOUNDARY_ADDR",
+    3150:"S_DA_UPDATE_BOOTLOADER_BEGIN_ADDR_NOT_MATCHED",
+    3151:"S_DA_CBR_SET_BUF_AND_API_FAIL",
+    3152:"S_DA_CBR_NOT_FOUND",
+    3153:"S_DA_CBR_FLASH_LAYOUT_NOT_FOUND",
+    3154:"S_DA_CBR_FLASH_SPACE_INFO_NOT_FOUND",
+    3155:"S_DA_CBR_FLASH_CONFIG_NOT_FOUND",
+    3156:"S_DA_CBR_SET_ENVRIONMENT_FAILED",
+    3157:"S_DA_CBR_CREAT_FAILED",
+    3158:"S_DA_CBR_COMPARE_FAILED",
+    3159:"S_DA_CBR_WRONG_VERSION",
+    3160:"S_DA_CBR_ALREADY_EXIST",
+    3161:"S_DA_CBR_RECORD_BUF_TOO_SMALL",
+    3162:"S_DA_CBR_RECORD_NOT_EXIST",
+    3163:"S_DA_CBR_RECORD_ALREADY_EXIST",
+    3164:"S_DA_CBR_FULL",
+    3165:"S_DA_CBR_RECORD_WRITE_LEN_INCONSISTENT",
+    3166:"S_DA_CBR_VERSION_NOT_MATCHED",
+    3167:"S_DA_CBR_NOT_SUPPORT_PCT_FLASH",
+    3168:"S_DA_CBR_UNKNOWN_ERROR",
+    3169:"S_DA_SEC_RO_ACC_PARSE_ERROR",
+    3170:"S_DA_HEADER_BLOCK_NOT_EXIST",
+    3171:"S_DA_S_PRE_PARSE_CUSTOMER_NAME_FAIL",
+    3172:"S_DA_S_RETRIEVE_SEC_RO_FAIL_IN_SECURE_INIT",
+    3173:"S_DA_S_FLASH_INFO_NOT_EXIST",
+    3174:"S_DA_S_MAUI_INFO_NOT_EXIST",
+    3175:"S_DA_S_BOOTLOADER_SHARE_DATA_NOT_EXIST",
+    3176:"S_DA_GFH_FILE_INFO_RETREIVAL_FAIL",
+    3177:"S_DA_NAND_REMARK_FAIL",
+    3178:"S_DA_TARGET_IS_NOT_NEW_BL_BUT_PC_IS",
+    3179:"S_DA_EMMC_FLASH_NOT_FOUND",
+    3180:"S_DA_EMMC_ENABLE_BOOT_FAILED",
+    3181:"S_DA_HB_FOUND_IN_OTHER_FLASH_DEV",
+    3182:"S_DA_USB_2_0_NOT_SUPPORT",
+    3183:"S_DA_CBR_INIT_FAILED",
+    3184:"S_DA_CBR_MAUI_INFO_SIZE_TOO_BIG",
+    3185:"S_DA_CBR_WRITE_MAUI_INFO_FAILED",
+    3186:"S_DA_CBR_READ_MAUI_INFO_FAILED",
+    3187:"S_DA_UNSUPPORTED_OPERATION",
+    3188:"S_DA_MBA_RESOURCE_BIN_NUMBER_NOT_MATCH_WITH_TARGET",
+    3189:"S_DA_MBA_HEADER_NOT_EXIST",
+    3190:"S_DA_MBA_RESOURCE_VERSION_NO_MATCH_WITH_TARGET",
+    3191:"S_DA_BOOTLOADER_SELF_UPDATE_FAIL",
+    3192:"S_DA_SEARCH_BL_SELF_UPDATE_INFO_FAIL",
+    3193:"S_DA_SPACE_NOT_ENOUGH_FOR_EXT_BL_MARKER",
+    3194:"S_DA_FIND_EXT_BL_MARKER_FAIL",
+    3195:"S_DA_TOO_MANY_BAD_BLOCKS_FOR_EXT_BL_MARKER",
+    3196:"S_DA_TOO_MANY_BAD_BLOCKS_FOR_EXT_BL_BACKUP",
+    3197:"S_DA_EXT_BL_VER_MISMATCHED",
+    3198:"S_DA_EXT_BL_VER_NOT_FOUND",
+    3199:"S_DA_BL_SELF_UPDATE_FEATURE_CHECK_FAILED",
+    3200:"S_DA_BL_ROM_INFO_NOT_FOUND",
+    3201:"S_DA_EXT_BL_MAX_SIZE_MISMATCHED",
+    3202:"S_DA_INVALID_PARAMETER_FROM_PC",
+    3203:"S_DA_BL_SELF_UPDATE_NOT_SUPPORTED",
+    3204:"S_DA_EXT_BL_HDR_NOT_FOUND",
+    3205:"S_DA_S_FLASH_LAYOUT_NOT_EXIST",
+    3206:"S_DA_S_FLASH_ID_NOT_EXIST",
+    3207:"S_DA_MAUI_GFH_FLASH_ID_NOT_MATCH_WITH_TARGET",
+    3208:"S_DA_FLASH_ERASE_SIZE_NOT_SUPPORT",
+    3209:"S_DA_SRD_NOT_FOUND",
+    3210:"S_DA_SRD_UPDATE_FAILED",
+    3211:"S_DA_NAND_DATA_ADDR_NOT_PAGE_ALIGNMENT",
+    3212:"S_DA_BL_GFH_BROM_SEC_CFG_NOT_FOUND",
+    3213:"S_DA_BL_CUSTOMER_NAME_BUFFER_INSUFFICIENT",
+    3214:"S_DA_COM_BUSY",
+    3215:"S_DA_INITIAL_BMT_FAILED_CAUSED_FROM_POOL_SIZE_ERROR",
+    3216:"S_DA_LOAD_ORIGINAL_BMT_FAILED",
+    3217:"S_DA_INVALID_NAND_PAGE_BUFFER",
+    3218:"S_DA_DL_BOOT_REGION_IS_OVERLAP_CONTROL_BLOCK_REGION",
+    3219:"S_DA_PRE_DL_HB_INIT_FAIL",
+    3220:"S_DA_POST_DL_HB_WRITE_FAIL",
+    3221:"S_DA_LOAD_IMG_PARA_FAIL",
+    3222:"S_DA_WRITE_IMG_PARA_FAIL",
+    3223:"S_DA_UPDATE_HB_FAIL",
+    3224:"S_DA_BIN_SIZE_EXCEED_MAX_ERR",
+    3225:"S_DA_PARTIAL_BIN_TYPE_ERR",
+    3226:"S_DA_IMAGE_PARA_QUERY_ERR",
+    3227:"S_DA_IMAGE_PARA_UPDATE_ERR",
+    3228:"S_DA_FLASH_LAYOUT_BIN_NOT_FOUND",
+    3229:"S_DA_FLASH_LAYOUT_GET_ELEMENT_FAIL",
+    3230:"S_DA_FLASH_LAYOUT_ADD_ELEMENT_FAIL",
+    3231:"S_DA_CBR_FOUND_BUT_MAUI_NOT_EXIST",
+    3232:"S_DA_UPDATE_BOOTLOADER_NOT_CONTAIN_CRITICAL_DATA",
+    3233:"S_DA_DUMP_FLASH_LAYOUT_FAIL",
+    3234:"S_DA_BMT_NO_INIT",
+    3235:"S_DA_NOR_PROGRAM_REGION_IS_OVERLAP"
+}
+
+def error_to_string(errcode):
+    if errorcode in errortbl:
+        return errortbl[errorcode]
 
 class DALegacy(metaclass=LogBase):
     class Rsp:
@@ -384,6 +626,12 @@ class DALegacy(metaclass=LogBase):
 
     def set_stage2_config(self, hwcode):
         # m_nor_chip_select[0]="CS_0"(0x00), m_nor_chip_select[1]="CS_WITH_DECODER"(0x08)
+        if hwcode==0x6572:
+            self.usbwrite(self.Cmd.ENTER_RELAY_MODE_CMD)
+            self.usbwrite(pack("B",0x01))
+        else:
+            self.usbwrite(self.Cmd.GET_PROJECT_ID_CMD)
+            self.usbwrite(pack("B", 1))
         m_nor_chip = 0x08
         self.usbwrite(pack(">H", m_nor_chip))
         m_nor_chip_select = 0x00
@@ -466,23 +714,39 @@ class DALegacy(metaclass=LogBase):
                         val = 0x10
                     elif self.config.hwcode == 0x6580:
                         val = 0x15
+                    elif self.config.hwcode == 0x6572:
+                        val = 0x0B
                     else:
                         val = 0x14
                     self.usbwrite(pack(">I", val))
                     if self.usbread(1) == self.Rsp.ACK:
-                        info = unpack(">I", self.usbread(4))[0]  # 0x000000BC
-                        self.debug("Info: " + hex(info))
-                        self.usbwrite(self.Rsp.ACK)
                         dramlength = len(dramdata)
-                        self.usbwrite(pack(">I", dramlength))
-                        for pos in range(0, len(dramdata), 64):
-                            self.usbwrite(dramdata[pos:pos + 64])
+                        if val in [0x10,0x14,0x15]:
+                            dramlength = unpack(">I",self.usbread(0x4))[0] # 0x000000BC
+                            self.debug("Info: " + hex(dramlength))
+                            self.usbwrite(self.Rsp.ACK)
+                            self.usbwrite(pack(">I", dramlength))
+                        elif val in [0x0B]:
+                            info = self.usbread(0x10)  # 0x000000BC
+                            self.debug("Info: " + hexlify(info).decode('utf-8'))
+                            dramlength = unpack(">I",self.usbread(0x4))[0]
+                            self.usbwrite(self.Rsp.ACK)
+                        pos=0
+                        while dramlength>0:
+                            size=min(64,dramlength)
+                            self.usbwrite(dramdata[pos:pos + size])
+                            pos+=size
+                            dramlength-=size
                         status = unpack(">H", self.usbread(2))[0]  # 0x440C
                         self.debug("Status: %04X" % status)
                         self.usbwrite(self.Rsp.ACK)
                         self.usbwrite(pack(">I", 0x80000001))  # Send DRAM config
                         m_ext_ram_ret = unpack(">I", self.usbread(4))[0]  # 0x00000000 S_DONE
                         self.debug(f"M_EXT_RAM_RET : {m_ext_ram_ret}")
+                        if m_ext_ram_ret!=0:
+                            self.error("Preloader error: %d => %s" % (m_ext_ram_ret,error_to_string(m_ext_ram_ret)))
+                            self.mtk.port.close()
+                            sys.exit(0)
                         m_ext_ram_type = self.usbread(1)[0]  # 0x02 HW_RAM_DRAM
                         self.debug(f"M_EXT_RAM_TYPE : {m_ext_ram_type}")
                         m_ext_ram_chip_select = self.usbread(1)[0]  # 0x00 CS_0
@@ -528,7 +792,7 @@ class DALegacy(metaclass=LogBase):
             self.error("No valid da loader found... aborting.")
             return False
         loader = self.daconfig.loader
-        if self.config.blver == -2:
+        if self.config.blver == -2 or self.config.blver == 1:
             self.info("Uploading stage 1...")
             with open(loader, 'rb') as bootldr:
                 # stage 1
@@ -575,13 +839,10 @@ class DALegacy(metaclass=LogBase):
                 ackval = self.usbread(3)
                 self.debug("ACK: " + hexlify(ackval).decode('utf-8'))
 
-                self.usbwrite(self.Cmd.GET_PROJECT_ID_CMD)
-                self.usbwrite(pack("B", 1))
-
                 self.set_stage2_config(self.config.hwcode)
                 self.info("Uploading stage 2...")
                 # stage 2
-                if self.brom_send(self.daconfig.da, bootldr, 3):
+                if self.brom_send(self.daconfig, bootldr, 3):
                     if self.read_flash_info():
                         if self.daconfig.flashtype == "nand":
                             self.daconfig.flashsize = self.nand["m_nand_flash_size"]
@@ -629,9 +890,9 @@ class DALegacy(metaclass=LogBase):
         self.mtk.port.close()
 
     def brom_send(self, dasetup, da, stage, packetsize=0x1000):
-        offset = dasetup[stage]["m_buf"]
-        size = dasetup[stage]["m_len"]
-        address = dasetup[stage]["m_start_addr"]
+        offset = dasetup.da[stage]["m_buf"]
+        size = dasetup.da[stage]["m_len"]
+        address = dasetup.da[stage]["m_start_addr"]
         da.seek(offset)
         dadata = da.read(size)
         self.usbwrite(pack(">I", address))
@@ -685,7 +946,7 @@ class DALegacy(metaclass=LogBase):
                 return True
         return False
 
-    def sdmmc_write_data(self, addr, length, filename, parttype=None, display=True):
+    def sdmmc_write_data(self, addr, length, filename, offset=0, parttype=None, display=True):
         if parttype is None or parttype == "user":
             length = min(length, self.emmc["m_emmc_ua_size"])
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
@@ -723,6 +984,7 @@ class DALegacy(metaclass=LogBase):
 
         if filename != "":
             with open(filename, "rb") as rf:
+                rf.seek(offset)
                 if display:
                     print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
                 self.usbwrite(self.Cmd.SDMMC_WRITE_DATA_CMD)
@@ -806,8 +1068,8 @@ class DALegacy(metaclass=LogBase):
                 return True
         return True
 
-    def writeflash(self, addr, length, filename, partitionname, parttype=None, display=True):
-        return self.sdmmc_write_data(addr=addr, length=length, filename=filename, parttype=parttype, display=display)
+    def writeflash(self, addr, length, filename, partitionname, offset=0, parttype=None, display=True):
+        return self.sdmmc_write_data(addr=addr, length=length, filename=filename, offset=offset, parttype=parttype, display=display)
 
     def formatflash(self, addr, length, parttype=None, display=True):
         if parttype is None or parttype == "user" or parttype == "":
@@ -970,3 +1232,4 @@ class DALegacy(metaclass=LogBase):
                         print_progress(prog, 100, prefix='Progress:', suffix='Complete', bar_length=50)
                         old = round(prog, 1)
             return buffer
+

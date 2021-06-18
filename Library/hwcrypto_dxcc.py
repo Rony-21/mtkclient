@@ -944,6 +944,15 @@ def HW_DESC_SET_CIPHER_DO(pDesc, cipherDo):
     pDesc[4] |= tovalue(cipherDo, bitsize, shift)
     return pDesc
 
+def HW_DESC_SET_DIN_NODMA(pDesc, dinAdr, dinSize):
+    v = DSCRPTR["DSCRPTR_QUEUE0_WORD0"]
+    shift, bitsize = v[1], v[2]
+    pDesc[0] |= tovalue(dinAdr & 0xFFFFFFFF, bitsize, shift)
+    shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_DMA_MODE"]
+    pDesc[1] |= tovalue(DmaMode.NO_DMA, bitsize, shift)
+    shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_SIZE"]
+    pDesc[1] |= tovalue(dinSize, bitsize, shift)
+    return pDesc
 
 def HW_DESC_SET_DIN_TYPE(pDesc, dmaMode, dinAdr, dinSize, axiId, axiNs):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD0"]
@@ -1055,15 +1064,17 @@ class dxcc(metaclass=LogBase):
         self.tzcc_clk(0)
         return fdekey
 
-    def generate_trustonic_fde(self, key_sz=32):
+    def generate_itrustee_fde(self, key_sz=32):
         fdekey = b""
         dstaddr = self.da_payload_addr - 0x300
+        self.tzcc_clk(1)
         for ctr in range(0, key_sz // 16):
-            self.tzcc_clk(1)
-            trustonic = b"TrustedCorekeymaster" + b"\x07" * 0x10
-            seed = trustonic + pack("<B", ctr)
-            fdekey += self.SBROM_KeyDerivation(1, b"", seed, 0x10, dstaddr)
-            self.tzcc_clk(0)
+            itrustee = b"TrustedCorekeymaster" + b"\x07" * 0x10
+            seed = itrustee + pack("<B", ctr)
+            paddr=self.SBROM_AesCmac(1,0x0,seed,0x0,len(seed),dstaddr)
+            for field in self.read32(paddr + 0x108, 4):
+                fdekey+=pack("<I", field)
+        self.tzcc_clk(0)
         return fdekey
 
     def generate_rpmb(self):
@@ -1222,7 +1233,8 @@ class dxcc(metaclass=LogBase):
                 desc = HW_DESC_SET_DOUT_SRAM(desc, pInternalKey, AES_BLOCK_SIZE_IN_BYTES)
             else:
                 desc = HW_DESC_SET_DOUT_DLLI(desc, pInternalKey, AES_BLOCK_SIZE_IN_BYTES, SB_AXI_ID, 0)
-            desc = HW_DESC_SET_DIN_SRAM(desc, 0, 0)
+            #desc = HW_DESC_SET_DIN_SRAM(desc, 0, 0)
+            desc = HW_DESC_SET_DIN_NODMA(desc, 0, 0)
             self.SaSi_SB_AddDescSequence(desc)
         return self.SB_HalWaitDescCompletion(pCMacResult) == 0
 

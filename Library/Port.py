@@ -90,7 +90,7 @@ class Port(metaclass=LogBase):
 
                     while i < length and tries > 0:
                         if self.cdc.device.write(self.cdc.EP_OUT, startcmd[i]):
-                            time.sleep(0.01)
+                            time.sleep(0.005)
                             try:
                                 v = self.cdc.device.read(self.cdc.EP_IN, 64, None)
                                 if len(v) == 1:
@@ -124,6 +124,8 @@ class Port(metaclass=LogBase):
                     time.sleep(0.3)
                     sys.stdout.flush()
             except Exception as serr:
+                if "access denied" in str(serr):
+                    self.warning(str(serr))
                 self.debug(str(serr))
                 pass
         return False

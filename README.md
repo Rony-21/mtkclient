@@ -22,6 +22,14 @@ sudo apt install python3
 pip3 install -r requirements.txt
 ```
 
+### Install rules
+```
+sudo adduser $USER dialout
+sudo adduser $USER plugdev
+sudo cp Setup/Linux/*.rules /etc/udev/rules.d
+sudo udevadm control -R
+```
+
 ### Install gcc armeabi compiler
 
 ```
