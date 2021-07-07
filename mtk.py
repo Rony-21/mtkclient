@@ -9,15 +9,15 @@ Usage:
     mtk.py [--debugmode]
     mtk.py [--gpt-num-part-entries=number] [--gpt-part-entry-size=number] [--gpt-part-entry-start-lba=number]
     mtk.py [--sectorsize=bytes]
-    mtk.py printgpt [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] [--generatekeys=keymode]
-    mtk.py gpt <filename> [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] [--generatekeys=keymode]
-    mtk.py r <partitionname> <filename> [--parttype=parttype] [--memory=memtype] [--lun=lun] [--preloader=filename] [--payload=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
-    mtk.py rl <directory> [--memory=memtype] [--parttype=parttype] [--lun=lun] [--skip=partnames] [--preloader=filename] [--payload=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
-    mtk.py rf <filename> [--memory=memtype] [--parttype=parttype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
-    mtk.py rs <start_sector> <sectors> <filename> [--parttype=parttype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
-    mtk.py w <partitionname> <filename> [--parttype=parttype] [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
-    mtk.py e <partitionname> [--parttype=parttype] [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
-    mtk.py footer <filename> [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] [--generatekeys=keymode]
+    mtk.py printgpt [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] 
+    mtk.py gpt <filename> [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] 
+    mtk.py r <partitionname> <filename> [--parttype=parttype] [--memory=memtype] [--lun=lun] [--preloader=filename] [--payload=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
+    mtk.py rl <directory> [--memory=memtype] [--parttype=parttype] [--lun=lun] [--skip=partnames] [--preloader=filename] [--payload=filename] [--loader=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
+    mtk.py rf <filename> [--memory=memtype] [--parttype=parttype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
+    mtk.py rs <start_sector> <sectors> <filename> [--parttype=parttype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
+    mtk.py w <partitionname> <filename> [--parttype=parttype] [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
+    mtk.py e <partitionname> [--parttype=parttype] [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
+    mtk.py footer <filename> [--memory=memtype] [--lun=lun] [--preloader=filename] [--loader=filename] [--payload=filename] [--debugmode] [--vid=vid] [--pid=pid] [--var1=var1] 
     mtk.py reset [--debugmode] [--vid=vid] [--pid=pid]
     mtk.py dumpbrom [--filename=filename] [--ptype=ptype] [--crash] [--skipwdt] [--wdt=wdt] [--var1=var1] [--da_addr=addr] [--brom_addr=addr] [--uartaddr=addr] [--debugmode] [--vid=vid] [--pid=pid] [--interface=interface] [--socid]
     mtk.py payload [--payload=filename] [--ptype=ptype] [--crash] [--var1=var1] [--skipwdt] [--wdt=wdt] [--uartaddr=addr] [--da_addr=addr] [--brom_addr=addr] [--debugmode] [--vid=vid] [--pid=pid] [--interface=interface] [--socid]
@@ -74,7 +74,6 @@ Options:
     --crash                            Enforce crash if device is in pl mode to enter brom mode
     --socid                            Read Soc ID
     --startpartition=startpartition    Option for plstage - Boot to (lk, tee1)
-    --generatekeys=keymode             Option for deriving hw keys (keymode=dxcc,sej) [default: None]
 """
 
 import os
@@ -129,7 +128,6 @@ class Mtk(metaclass=LogBase):
 
         preloader = self.args["--preloader"]
 
-        generatekeys = self.args["--generatekeys"]
 
         if vid != -1 and pid != -1:
             if interface == -1:
@@ -142,7 +140,7 @@ class Mtk(metaclass=LogBase):
             portconfig = default_ids
         self.port = Port(self, portconfig, self.__logger.level)
         self.preloader = Preloader(self, self.__logger.level)
-        self.daloader = DAloader(self, loader, preloader, generatekeys, self.__logger.level)
+        self.daloader = DAloader(self, loader, preloader, None, self.__logger.level)
 
     def crasher(self, args, enforcecrash, readsocid=False, display=True, mode=None):
         rmtk = self
@@ -900,5 +898,5 @@ class Main(metaclass=LogBase):
 
 
 if __name__ == '__main__':
-    print("MTK Flash/Exploit Client V1.2 (c) B.Kerler 2020-2021")
+    print("MTK Flash/Exploit Client V1.3 (c) B.Kerler 2020-2021")
     mtk = Main().run()
