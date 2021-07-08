@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
 import os
+import time
 import logging
 from Library.utils import LogBase, logsetup
 from enum import Enum
@@ -173,7 +174,6 @@ class Preloader(metaclass=LogBase):
             self.info("\tHW subcode:\t\t" + hex(self.config.hwsubcode))
             self.info("\tHW Ver:\t\t\t" + hex(self.config.hwver))
             self.info("\tSW Ver:\t\t\t" + hex(self.config.swver))
-        self.config.target_config = self.get_target_config(self.display)
 
         if not args["--skipwdt"]:
             if self.display:
@@ -183,6 +183,7 @@ class Preloader(metaclass=LogBase):
             self.info("HW code:\t\t\t" + hex(self.config.hwcode))
             with open(os.path.join("logs", "hwcode"), "w") as wf:
                 wf.write(hex(self.config.hwcode))
+        self.config.target_config = self.get_target_config(self.display)
         blver=self.get_blver()
         meid = self.get_meid()
         if len(meid) >= 16:
@@ -191,7 +192,7 @@ class Preloader(metaclass=LogBase):
         if self.display:
             if meid != b"":
                 self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
-        if readsocid:
+        if readsocid or self.config.chipconfig.has_socid:
             socid = self.get_socid()
             if len(socid) >= 16:
                 with open(os.path.join("logs", "socid"), "wb") as wf:
@@ -371,6 +372,7 @@ class Preloader(metaclass=LogBase):
                     "memread": False, "memwrite": False, "cmdC8": False}
 
     def jump_da(self, addr):
+        self.info(f"Jumping to {hex(addr)}")
         if self.echo(self.Cmd.JUMP_DA.value):
             self.usbwrite(pack(">I", addr))
             data = b""
@@ -389,6 +391,7 @@ class Preloader(metaclass=LogBase):
                     return True
                 else:
                     self.error(f"Jump_DA status error:{self.eh.status(status)}")
+
         return False
 
     def jump_da64(self, addr: int):
@@ -521,10 +524,14 @@ class Preloader(metaclass=LogBase):
         return gen_chksum, data
 
     def upload_data(self, data, gen_chksum):
-        for i in range(0, len(data),64):
-            if not self.usbwrite(data[i:i + 64]):
-                return False
-        self.usbwrite(b"")
+        bytestowrite=len(data)
+        pos=0
+        while bytestowrite>0:
+            size=min(bytestowrite,64)
+            self.usbwrite(data[pos:pos + size])
+            bytestowrite-=size
+            pos+=size
+        #self.usbwrite(b"")
         try:
             checksum, status = self.rword(2)
             if gen_chksum != checksum and checksum != 0:
@@ -539,7 +546,7 @@ class Preloader(metaclass=LogBase):
 
     def send_da(self, address, size, sig_len, dadata):
         gen_chksum, data = self.prepare_data(dadata[:-sig_len], dadata[-sig_len:], size)
-        if not self.echo(self.Cmd.SEND_DA.value):  # 0xD4
+        if not self.echo(self.Cmd.SEND_DA.value):  # 0xD7
             self.error(f"Error on DA_Send cmd")
             return False
         if not self.echo(address):

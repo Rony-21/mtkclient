@@ -11,9 +11,10 @@ from Library.mtk_daxflash import DAXFlash
 from config.brom_config import damodes
 
 class DAloader(metaclass=LogBase):
-    def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
+    def __init__(self, mtk, loader=None, preloader=None, generatekeys=None, loglevel=logging.INFO):
         self.__logger = logsetup(self, self.__logger, loglevel)
         self.mtk = mtk
+        self.generatekeys = generatekeys
         self.loader = loader
         self.preloader = preloader
         self.loglevel = loglevel
@@ -37,7 +38,7 @@ class DAloader(metaclass=LogBase):
         if self.mtk.config.chipconfig.damode==1:
             xflash=True
         if xflash:
-            self.da = DAXFlash(self.mtk, self.daconfig, self.loglevel)
+            self.da = DAXFlash(self.mtk, self.daconfig, self.generatekeys, self.loglevel)
         else:
             self.da = DALegacy(self.mtk, self.daconfig, self.loglevel)
 
@@ -75,8 +76,8 @@ class DAloader(metaclass=LogBase):
         self.set_da()
         return self.da.upload_da()
 
-    def writeflash(self, addr, length, filename, partitionname, parttype, display=True):
-        return self.da.writeflash(addr=addr, length=length, filename=filename, partitionname=partitionname, parttype=parttype, display=display)
+    def writeflash(self, addr, length, filename, partitionname, offset=0, parttype=None, display=True):
+        return self.da.writeflash(addr=addr, length=length, filename=filename, offset=offset, partitionname=partitionname, parttype=parttype, display=display)
 
     def formatflash(self, addr, length, partitionname, parttype, display=True):
         return self.da.formatflash(addr=addr, length=length, parttype=parttype)

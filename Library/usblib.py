@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
+import io
+import logging
+from profilehooks import profile
 import usb.core  # pyusb
 import usb.util
 import time
@@ -8,6 +11,8 @@ import inspect
 from enum import Enum
 from binascii import hexlify
 from Library.utils import *
+import traceback
+import array
 
 USB_DIR_OUT = 0  # to device
 USB_DIR_IN = 0x80  # to host
@@ -47,9 +52,7 @@ CDC_CMDS = {
 class usb_class(metaclass=LogBase):
 
     def __init__(self, loglevel=logging.INFO, portconfig=None, devclass=-1):
-        self.portconfig = portconfig
         self.connected = False
-        self.devclass = devclass
         self.timeout = None
         self.vid = None
         self.pid = None
@@ -62,19 +65,31 @@ class usb_class(metaclass=LogBase):
         self.EP_OUT = None
         self.configuration = None
         self.device = None
+        self.loglevel = loglevel
+        self.portconfig = portconfig
+        self.devclass = devclass
         self.__logger = self.__logger
         self.info = self.__logger.info
         self.error = self.__logger.error
         self.warning = self.__logger.warning
         self.debug = self.__logger.debug
         self.__logger.setLevel(loglevel)
+        self.buffer = array.array('B', [0]) * 1048576
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             fh = logging.FileHandler(logfilename)
             self.__logger.addHandler(fh)
 
     def verify_data(self, data, pre="RX:"):
-        self.debug("", stack_info=True)
+        if self.__logger.level==logging.DEBUG:
+            frame = inspect.currentframe()
+            stack_trace = traceback.format_stack(frame)
+            td=[]
+            for trace in stack_trace:
+                if not "verify_data" in trace and not "Port" in trace:
+                    td.append(trace)
+            self.debug(td[:-1])
+
         if isinstance(data, bytes) or isinstance(data, bytearray):
             if data[:5] == b"<?xml":
                 try:
@@ -326,34 +341,40 @@ class usb_class(metaclass=LogBase):
         return True
 
     def read(self, length=0x80, timeout=None):
-        tmp = b''
-        self.debug(inspect.currentframe().f_back.f_code.co_name + ":" + hex(length))
+        if self.loglevel == logging.DEBUG:
+            self.debug(inspect.currentframe().f_back.f_code.co_name + ":" + hex(length))
+        rxBuffer = array.array('B')
+        extend = rxBuffer.extend
         if timeout is None:
             timeout = self.timeout
-        while bytearray(tmp) == b'':
+        buffer = self.buffer[:length]
+        ep_read = self.EP_IN.read
+        while len(rxBuffer) == 0:
             try:
-                tmp = self.device.read(self.EP_IN, length, timeout)
-            except usb.core.USBError as err:
-                error = str(err.strerror)
+                length=ep_read(buffer, timeout)
+                extend(buffer[:length])
+                if len(rxBuffer)>0:
+                    return rxBuffer
+            except usb.core.USBError as e:
+                error = str(e.strerror)
                 if "timed out" in error:
                     # if platform.system()=='Windows':
                     # time.sleep(0.05)
                     # print("Waiting...")
                     self.debug("Timed out")
-                    self.debug(tmp)
-                    return bytearray(tmp)
+                    self.debug(rxBuffer)
+                    return rxBuffer
                 elif "Overflow" in error:
-                    self.__logger.error("USB Overflow")
+                    self.error("USB Overflow")
                     sys.exit(0)
-                elif err.errno is not None:
-                    print(repr(err), type(err), err.errno)
+                elif e.errno is not None:
+                    print(repr(e), type(e), e.errno)
                     sys.exit(0)
                 else:
                     break
-            if tmp==b'':
-                time.sleep(0.005)
-        self.verify_data(bytearray(tmp), "RX:")
-        return bytearray(tmp)
+        if self.loglevel == logging.DEBUG:
+            self.verify_data(rxBuffer, "RX:")
+        return rxBuffer
 
     def ctrl_transfer(self, bmRequestType, bRequest, wValue, wIndex, data_or_wLength):
         ret = self.device.ctrl_transfer(bmRequestType=bmRequestType, bRequest=bRequest, wValue=wValue, wIndex=wIndex,
@@ -385,7 +406,8 @@ class usb_class(metaclass=LogBase):
 
     def rdword(self, count=1, little=False):
         rev = "<" if little else ">"
-        data = unpack(rev + "I" * count, self.usbread(4 * count))
+        value = self.usbread(4 * count)
+        data = unpack(rev + "I" * count, value)
         if count == 1:
             return data[0]
         return data
@@ -400,19 +422,11 @@ class usb_class(metaclass=LogBase):
     def rbyte(self, count=1):
         return self.usbread(count)
 
-    def usbread(self, resplen, usbsize=64):
-        size = min(resplen, usbsize)
-        res = b""
-        timeout = 0
-        while resplen > 0:
-            tmp = self.read(size)
-            if tmp == b"":
-                if timeout == 4:
-                    break
-                timeout += 1
-                time.sleep(0.1)
-            resplen -= len(tmp)
-            res += tmp
+    def usbread(self, resplen, size=None):
+        if size is None:
+            size = resplen
+        res = bytearray()
+        while len(res)<resplen: res.extend(self.read(size))
         return res
 
 

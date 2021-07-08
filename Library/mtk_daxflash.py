@@ -4,17 +4,70 @@
 import logging
 import time
 import os
+import hashlib
 from binascii import hexlify
 from struct import pack, unpack
 from Library.utils import LogBase, print_progress, logsetup
 from Library.error import ErrorHandler
 from Library.daconfig import EMMC_PartitionType, UFS_PartitionType, DaStorage
 from Library.partition import Partition
+from Library.hwcrypto import crypto_setup, hwcrypto
+
+
+def find_binary(data, strf, pos=0):
+    t = strf.split(b".")
+    pre = 0
+    offsets = []
+    while pre != -1:
+        pre = data[pos:].find(t[0], pre)
+        if pre == -1:
+            if len(offsets) > 0:
+                for offset in offsets:
+                    error = 0
+                    rt = offset + len(t[0])
+                    for i in range(1, len(t)):
+                        if t[i] == b'':
+                            rt += 1
+                            continue
+                        rt += 1
+                        prep = data[rt:].find(t[i])
+                        if prep != 0:
+                            error = 1
+                            break
+                        rt += len(t[i])
+                    if error == 0:
+                        return pos + offset
+            else:
+                return -1
+        else:
+            offsets.append(pre)
+            pre += 1
+    return -1
+
+class NandExtension:
+    # uni=0, multi=1
+    cellusage = 0
+    # logical=0, physical=1, physical_pmt=2
+    addr_type = 0
+    # raw=0, ubi_img=1, ftl_img=2
+    bin_type = 0
+    # operation_type -> spare=0,page=1,page_ecc=2,page_spare_ecc=3,verify=4,page_spare_norandom,page_fdm
+    # nand_format_level -> format_normal=0,force=1,mark_bad_block=2,level_end=3
+    operation_type = 0  # or nand_format_level
+    sys_slc_percent = 0
+    usr_slc_percent = 0
+    phy_max_size = 0
+
+
+def addr_to_block(addr, blocksize):
+    return addr // blocksize
 
 
 class DAXFlash(metaclass=LogBase):
     class Cmd:
         MAGIC = 0xFEEEEEEF
+        SYNC_SIGNAL = 0x434E5953
+
         UNKNOWN = 0x010000
         DOWNLOAD = 0x010001
         UPLOAD = 0x010002
@@ -35,7 +88,21 @@ class DAXFlash(metaclass=LogBase):
         SETUP_ENVIRONMENT = 0x010100
         SETUP_HW_INIT_PARAMS = 0x010101
 
-        SYNC_SIGNAL = 0x434E5953
+        SET_BMT_PERCENTAGE = 0x020001
+        SET_BATTERY_OPT = 0x020002
+        SET_CHECKSUM_LEVEL = 0x020003
+        SET_RESET_KEY = 0x020004
+        SET_HOST_INFO = 0x020005
+        SET_META_BOOT_MODE = 0x020006
+        SET_EMMC_HWRESET_PIN = 0x020007
+        SET_GENERATE_GPX = 0x020008
+        SET_REGISTER_VALUE = 0x020009
+        SET_EXTERNAL_SIG = 0x02000A
+        SET_REMOTE_SEC_POLICY = 0x02000B
+        SET_ALL_IN_ONE_SIG = 0x02000C
+        SET_RSC_INFO = 0x02000D
+        SET_UPDATE_FW = 0x020010
+        SET_UFS_CONFIG = 0x020011
 
         GET_EMMC_INFO = 0x040001
         GET_NAND_INFO = 0x040002
@@ -56,36 +123,20 @@ class DAXFlash(metaclass=LogBase):
         GET_EXPIRE_DATE = 0x040011
         GET_DRAM_TYPE = 0x040012
         GET_DEV_FW_INFO = 0x040013
+        GET_HRID = 0x040014
+        GET_ERROR_DETAIL = 0x040015
 
-        SET_BMT_PERCENTAGE = 0x020001
-        SET_BATTERY_OPT = 0x020002
-        SET_CHECKSUM_LEVEL = 0x020003
-        SET_RESET_KEY = 0x020004
-        SET_HOST_INFO = 0x020005
-        SET_META_BOOT_MODE = 0x020006
-        SET_EMMC_HWRESET_PIN = 0x020007
-        SET_GENERATE_GPX = 0x020008
-        SET_REGISTER_VALUE = 0x020009
-        SET_EXTERNAL_SIG = 0x02000A
-        SET_REMOTE_SEC_POLICY = 0x02000B
-        SET_ALL_IN_ONE_SIG = 0x02000C
-        SET_RSC_INFO = 0x02000D
-        SET_UPDATE_FW = 0x020010
-        SET_UFS_CONFIG = 0x020011
         START_DL_INFO = 0x080001
         END_DL_INFO = 0x080002
         ACT_LOCK_OTP_ZONE = 0x080003
         DISABLE_EMMC_HWRESET_PIN = 0x080004
+        CC_OPTIONAL_DOWNLOAD_ACT = 0x800005
         DA_STOR_LIFE_CYCLE_CHECK = 0x080007
-
-        RPMB_WRITE = 0x0C0003 # UFS
-        RPMB_READ = 0x0C0005 # UFS
 
         UNKNOWN_CTRL_CODE = 0x0E0000
         CTRL_STORAGE_TEST = 0x0E0001
         CTRL_RAM_TEST = 0x0E0002
         DEVICE_CTRL_READ_REGISTER = 0x0E0003
-        CC_OPTIONAL_DOWNLOAD_ACT = 0x800005
 
     class ChecksumAlgorithm:
         PLAIN = 0
@@ -100,9 +151,19 @@ class DAXFlash(metaclass=LogBase):
         DT_PROTOCOL_FLOW = 1
         DT_MESSAGE = 2
 
-    def __init__(self, mtk, daconfig, loglevel=logging.INFO):
+    def __init__(self, mtk, daconfig, generatekeys=None, loglevel=logging.INFO):
         self.__logger = logsetup(self, self.__logger, loglevel)
+        self.info = self.__logger.info
+        self.debug = self.__logger.debug
+        self.error = self.__logger.error
+        self.warning = self.__logger.warning
+        self.progtime = 0
+        self.prog = 0
+        self.progpos = 0
         self.mtk = mtk
+        self.loglevel = loglevel
+        self.patch = False
+        self.generatekeys = None
         self.sram = None
         self.dram = None
         self.emmc = None
@@ -125,9 +186,10 @@ class DAXFlash(metaclass=LogBase):
 
     def ack(self):
         tmp = pack("<III", self.Cmd.MAGIC, self.DataType.DT_PROTOCOL_FLOW, 4)
+        self.usbwrite(tmp)
         data = pack("<I", 0)
-        if self.usbwrite(tmp):
-            return self.usbwrite(data)
+        return self.usbwrite(data)
+
 
     def send(self, data, datatype=DataType.DT_PROTOCOL_FLOW):
         if isinstance(data, int):
@@ -142,7 +204,7 @@ class DAXFlash(metaclass=LogBase):
 
     def recv(self):
         magic, datatype, length = unpack("<III", self.usbread(4 + 4 + 4))
-        resp = self.usbread(length, length)
+        resp = self.usbread(length)
         return resp
 
     def rdword(self, count=1):
@@ -154,13 +216,10 @@ class DAXFlash(metaclass=LogBase):
         return data
 
     def status(self):
-        time.sleep(0.005)
-        tmp=self.usbread(4 + 4 + 4)
-        if len(tmp)==12:
-            magic, datatype, length = unpack("<III", tmp)
-            status = unpack("<I", self.usbread(4,4))[0]
-            return status
-        return -1
+        tmp = self.usbread(4 + 4 + 4)
+        magic, datatype, length = unpack("<III", tmp)
+        status = unpack("<"+str(length//4)+"I", self.usbread(length))[0]
+        return status
 
     def read_pmt(self):
         return b"", []
@@ -171,7 +230,7 @@ class DAXFlash(metaclass=LogBase):
         for param in params:
             pkt = pack("<III", self.Cmd.MAGIC, self.DataType.DT_PROTOCOL_FLOW, len(param))
             if self.usbwrite(pkt):
-                time.sleep(0.05)
+                #time.sleep(0.05)
                 length = len(param)
                 pos = 0
                 while length > 0:
@@ -187,6 +246,31 @@ class DAXFlash(metaclass=LogBase):
             self.error(f"Error on sending parameter, status {hex(status)}.")
         return False
 
+    def show_progress(self, prefix, pos, total, display=True):
+        t0 = time.time()
+        if pos == 0:
+            self.prog = 0
+            self.progtime = time.time()
+            self.progpos=pos
+        prog = round(float(pos) / float(total) * float(100), 2)
+        if pos != total:
+            if prog > self.prog:
+                if display:
+                    tdiff=t0-self.progtime
+                    datasize=(pos-self.progpos)/1024/1024
+                    throughput=(((datasize)/(tdiff)))
+                    print_progress(prog, 100, prefix='Progress:',
+                                   suffix=prefix+' (Addr 0x%X of 0x%X) %0.2f MB/s' %
+                                   (pos,
+                                    total,
+                                    throughput), bar_length=50)
+                    self.prog = prog
+                    self.progpos = pos
+                    self.progtime = t0
+        else:
+            if display:
+                print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
+
     def send_devctrl(self, cmd, param=None, status=None):
         if status is None:
             status = [0]
@@ -200,7 +284,7 @@ class DAXFlash(metaclass=LogBase):
                             return self.recv()
                         else:
                             return self.send_param(param)
-        if status[0]!=0xC0010004:
+        if status[0] != 0xC0010004:
             self.error("Error on sending dev ctrl 0x%X, status 0x%X" % (cmd, status[0]))
         return b""
 
@@ -242,6 +326,67 @@ class DAXFlash(metaclass=LogBase):
                 self.error(f"Error on sending data: {hex(status)}")
                 return False
 
+    def compute_hash_pos(self, da2, bootldr):
+        da1offset = self.daconfig.da[2]["m_buf"]
+        da1size = self.daconfig.da[2]["m_len"] - self.daconfig.da[1]["m_sig_len"]
+        da1address = self.daconfig.da[2]["m_start_addr"]  # at_address
+        da2offset = self.daconfig.da[3]["m_buf"]
+        da2size = self.daconfig.da[3]["m_len"] - self.daconfig.da[3]["m_sig_len"]
+        hashdigest = hashlib.sha1(da2).digest()
+        hashdigest256 = hashlib.sha256(da2).digest()
+        bootldr.seek(da1offset)
+        da1 = bootldr.read(da1size)
+        idx = da1.find(hashdigest)
+        hashmode = 1
+        if idx == -1:
+            idx = da1.find(hashdigest256)
+            hashmode = 2
+        if idx != -1:
+            return da1address + idx, hashmode
+        return None, None
+
+    def read(self, addr, dwords=1):
+        res = []
+        for pos in range(dwords):
+            if self.send(self.Cmd.DOWNLOAD):
+                if self.status() == 0:
+                    param = pack("<I", addr + (pos * 4))
+                    pkt1 = pack("<III", self.Cmd.MAGIC, self.DataType.DT_PROTOCOL_FLOW, len(param))
+                    if self.usbwrite(pkt1):
+                        if self.usbwrite(param):
+                            val = self.status()
+                            if dwords == 1:
+                                return val
+                            res.append(val)
+        return res
+
+    def write(self, addr, dwords):
+        if isinstance(dwords, int):
+            dwords = [dwords]
+        pos = 0
+        for val in dwords:
+            if self.send(self.Cmd.UPLOAD):
+                if self.status() == 0:
+                    param = pack("<II", addr + pos, val)
+                    pkt1 = pack("<III", self.Cmd.MAGIC, self.DataType.DT_PROTOCOL_FLOW, len(param))
+                    if self.usbwrite(pkt1):
+                        if self.usbwrite(param):
+                            self.status()
+                            if len(dwords) == 1:
+                                return True
+                else:
+                    return False
+            pos += 4
+        return True
+
+    def writemem(self, addr, data):
+        for i in range(0, len(data), 4):
+            value = data[i:i + 4]
+            while len(value) < 4:
+                value += b"\x00"
+            self.write(addr + i, unpack("<I", value))
+        return True
+
     def boot_to(self, at_address, da):  # =0x40000000
         if self.send(self.Cmd.BOOT_TO):
             if self.status() == 0:
@@ -263,7 +408,15 @@ class DAXFlash(metaclass=LogBase):
         if status == 0x0:
             return res
 
-    def partitiontype_and_size(self,storage,parttype,length):
+    """
+    def get_dram_type(self):
+        res = self.send_devctrl(self.Cmd.GET_DRAM_TYPE)
+        status = self.status()
+        if status == 0x0:
+            return res
+    """
+
+    def partitiontype_and_size(self, storage, parttype, length):
         if storage == DaStorage.MTK_DA_STORAGE_EMMC or storage == DaStorage.MTK_DA_STORAGE_SDMMC:
             storage = 1
             if parttype is None or parttype == "user":
@@ -301,36 +454,36 @@ class DAXFlash(metaclass=LogBase):
                            "\"gp2\",\"gp3\",\"gp4\",\"rpmb\"")
                 return []
         elif storage == DaStorage.MTK_DA_STORAGE_UFS:
-            if parttype is None or parttype == "lu3": # USER
+            if parttype is None or parttype == "lu3":  # USER
                 parttype = UFS_PartitionType.UFS_LU3
                 length = min(length, self.ufs.lu0_size)
-            elif parttype == "lu1": # BOOT1
+            elif parttype == "lu1":  # BOOT1
                 parttype = UFS_PartitionType.UFS_LU1
                 length = min(length, self.ufs.lu1_size)
-            elif parttype == "lu2": # BOOT2
+            elif parttype == "lu2":  # BOOT2
                 parttype = UFS_PartitionType.UFS_LU2
                 length = min(length, self.ufs.lu2_size)
-            elif parttype == "lu4": # RPMB
+            elif parttype == "lu4":  # RPMB
                 parttype = UFS_PartitionType.UFS_LU4
                 length = min(length, self.ufs.lu2_size)
             else:
                 self.error("Unknown parttype. Known parttypes are \"lu1\",\"lu2\"," +
-                           "\"lu3\"","\"lu4\"")
+                           "\"lu3\"", "\"lu4\"")
                 return []
         elif storage in [DaStorage.MTK_DA_STORAGE_NAND, DaStorage.MTK_DA_STORAGE_NAND_MLC,
-                DaStorage.MTK_DA_STORAGE_NAND_SLC, DaStorage.MTK_DA_STORAGE_NAND_TLC,
-                DaStorage.MTK_DA_STORAGE_NAND_SPI, DaStorage.MTK_DA_STORAGE_NAND_AMLC]:
+                         DaStorage.MTK_DA_STORAGE_NAND_SLC, DaStorage.MTK_DA_STORAGE_NAND_TLC,
+                         DaStorage.MTK_DA_STORAGE_NAND_SPI, DaStorage.MTK_DA_STORAGE_NAND_AMLC]:
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
             length = min(length, self.nand.total_size)
-        elif storage in [DaStorage.MTK_DA_STORAGE_NOR,DaStorage.MTK_DA_STORAGE_NOR_PARALLEL,
-                DaStorage.MTK_DA_STORAGE_NOR_SERIAL]:
+        elif storage in [DaStorage.MTK_DA_STORAGE_NOR, DaStorage.MTK_DA_STORAGE_NOR_PARALLEL,
+                         DaStorage.MTK_DA_STORAGE_NOR_SERIAL]:
             parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
             length = min(length, self.nor.available_size)
-        return [storage,parttype,length]
+        return [storage, parttype, length]
 
     def formatflash(self, addr, length, storage=DaStorage.MTK_DA_STORAGE_EMMC,
                     parttype=EMMC_PartitionType.MTK_DA_EMMC_PART_USER, display=False):
-        part_info=self.partitiontype_and_size(storage,parttype,length)
+        part_info = self.partitiontype_and_size(storage, parttype, length)
         if not part_info:
             return False
         storage, parttype, length = part_info
@@ -339,19 +492,6 @@ class DAXFlash(metaclass=LogBase):
             if self.status() == 0:
                 # storage: emmc:1,slc,nand,nor,ufs
                 # section: boot,user of emmc:8, LU1, LU2
-                class NandExtension:
-                    # uni=0, multi=1
-                    cellusage = 0
-                    # logical=0, physical=1, physical_pmt=2
-                    addr_type = 0
-                    # raw=0, ubi_img=1, ftl_img=2
-                    bin_type = 0
-                    # operation_type -> spare=0,page=1,page_ecc=2,page_spare_ecc=3,verify=4,page_spare_norandom,page_fdm
-                    # nand_format_level -> format_normal=0,force=1,mark_bad_block=2,level_end=3
-                    operation_type = 0  # or nand_format_level
-                    sys_slc_percent = 0
-                    usr_slc_percent = 0
-                    phy_max_size = 0
 
                 ne = NandExtension()
                 param = pack("<IIQQ", storage, parttype, addr, length)
@@ -359,12 +499,12 @@ class DAXFlash(metaclass=LogBase):
                               ne.sys_slc_percent, ne.usr_slc_percent, ne.phy_max_size, 0x0)
                 self.send_param(param)
                 status = self.status()
-                while status == 0x40040004: #STATUS_CONTINUE
-                    #it receive some data maybe sleep in ms time, 
+                while status == 0x40040004:  # STATUS_CONTINUE
+                    # it receive some data maybe sleep in ms time,
                     time.sleep(self.status() / 1000.0)
                     self.ack()
                     status = self.status()
-                if status == 0x40040005: #STATUS_COMPLETE
+                if status == 0x40040005:  # STATUS_COMPLETE
                     return True
         return False
 
@@ -395,10 +535,12 @@ class DAXFlash(metaclass=LogBase):
             sram = RamInfo()
             dram = RamInfo()
             if len(resp) == 24:
-                sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<IIIIII", resp)
+                sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<IIIIII",
+                                                                                                          resp)
             elif len(resp) == 48:
-                sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<QQQQQQ",resp)
-                                                                                                     
+                sram.type, sram.base_address, sram.size, dram.type, dram.base_address, dram.size = unpack("<QQQQQQ",
+                                                                                                          resp)
+
             return sram, dram
         return None, None
 
@@ -519,8 +661,8 @@ class DAXFlash(metaclass=LogBase):
                 self.info(f"UFS LU0 Size: {hex(ufs.lu0_size)}")
                 self.info(f"UFS LU1 Size: {hex(ufs.lu1_size)}")
                 self.info(f"UFS LU2 Size: {hex(ufs.lu2_size)}")
-                self.mtk.config.pagesize=ufs.block_size
-                self.mtk.daloader.daconfig.pagesize=ufs.block_size
+                self.mtk.config.pagesize = ufs.block_size
+                self.mtk.daloader.daconfig.pagesize = ufs.block_size
             return ufs
         return None
 
@@ -533,6 +675,18 @@ class DAXFlash(metaclass=LogBase):
 
     def get_random_id(self):
         res = self.send_devctrl(self.Cmd.GET_RANDOM_ID)
+        if self.status() == 0:
+            return res
+        return None
+
+    def get_hrid(self):
+        res = self.send_devctrl(self.Cmd.GET_HRID)
+        if self.status() == 0:
+            return res
+        return None
+
+    def get_dev_fw_info(self):
+        res = self.send_devctrl(self.Cmd.GET_DEV_FW_INFO)
         if self.status() == 0:
             return res
         return None
@@ -554,26 +708,26 @@ class DAXFlash(metaclass=LogBase):
             return plen
         return None
 
+    def cmd_write_data(self, addr, size, storage=DaStorage.MTK_DA_STORAGE_EMMC,
+                      parttype=EMMC_PartitionType.MTK_DA_EMMC_PART_USER):
+        if self.send(self.Cmd.WRITE_DATA):
+            if self.status() == 0:
+                # storage: emmc:1,slc,nand,nor,ufs
+                # section: boot,user of emmc:8, LU1, LU2
+                ne = NandExtension()
+                param = pack("<IIQQ", storage, parttype, addr, size)
+                param += pack("<IIIIIIII", ne.cellusage, ne.addr_type, ne.bin_type, ne.operation_type,
+                              ne.sys_slc_percent, ne.usr_slc_percent, ne.phy_max_size, 0x0)
+                if self.send_param(param):
+                    return True
+        return False
+
     def cmd_read_data(self, addr, size, storage=DaStorage.MTK_DA_STORAGE_EMMC,
                       parttype=EMMC_PartitionType.MTK_DA_EMMC_PART_USER):
         if self.send(self.Cmd.READ_DATA):
             if self.status() == 0:
                 # storage: emmc:1,slc,nand,nor,ufs
                 # section: boot,user of emmc:8, LU1, LU2
-                class NandExtension:
-                    # uni=0, multi=1
-                    cellusage = 0
-                    # logical=0, physical=1, physical_pmt=2
-                    addr_type = 0
-                    # raw=0, ubi_img=1, ftl_img=2
-                    bin_type = 0
-                    # operation_type -> spare=0,page=1,page_ecc=2,page_spare_ecc=3,verify=4,page_spare_norandom,page_fdm
-                    # nand_format_level -> format_normal=0,force=1,mark_bad_block=2,level_end=3
-                    operation_type = 0  # or nand_format_level
-                    sys_slc_percent = 0
-                    usr_slc_percent = 0
-                    phy_max_size = 0
-
                 ne = NandExtension()
                 param = pack("<IIQQ", storage, parttype, addr, size)
                 param += pack("<IIIIIIII", ne.cellusage, ne.addr_type, ne.bin_type, ne.operation_type,
@@ -583,10 +737,6 @@ class DAXFlash(metaclass=LogBase):
                 if status == 0x0:
                     return True
         return False
-
-    def addr_to_block(self, addr, blocksize):
-        return addr//blocksize
-
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
         if self.daconfig.flashtype == "nor":
@@ -607,124 +757,40 @@ class DAXFlash(metaclass=LogBase):
             return False
         storage, parttype, length = part_info
 
-        if parttype==EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB:
-            if display:
-                print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-            old = 0
+        if self.cmd_read_data(addr=addr, size=length, storage=storage, parttype=parttype):
             bytestoread = length
             if filename != "":
                 try:
                     with open(filename, "wb") as wf:
                         while bytestoread > 0:
-                            self.send(self.Cmd.RPMB_READ)
-                            self.send(pack("<I",0x0))
-                            self.send(pack("<I",self.addr_to_block(addr,0x100)))
+                            magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
+                            tmp = self.usbread(slength)
+                            self.ack()
+                            time.sleep(0.0001)
                             if self.status() != 0:
                                 break
-                            magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
-                            tmp = self.usbread(slength, slength)
+                            wf.write(tmp)
                             bytestoread -= len(tmp)
                             if display:
-                                prog = (length - bytestoread) / length * 100
-                                if round(prog, 1) > old:
-                                    print_progress(prog, 100, prefix='Progress:',
-                                                   suffix='Complete, Sector:' + hex(length - bytestoread),
-                                                   bar_length=50)
-                                    old = round(prog, 1)
-                            if addr%0x100:
-                                pos=addr-(addr//0x100*0x100)
-                            else:
-                                pos=0
-                            wf.write(tmp[pos:])
-                            addr=self.addr_to_block(addr,0x100)+0x100
+                                self.show_progress("Read", length-bytestoread, length, display)
+
                 except Exception as err:
                     self.error("Couldn't write to " + filename + ". Error: " + str(err))
                     return False
-                if display:
-                    print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
                 return True
             else:
                 buffer = bytearray()
-                while bytestoread > 0:
-                    self.send(self.Cmd.RPMB_READ)
-                    self.send(pack("<I", 0x0))
-                    self.send(pack("<I", self.addr_to_block(addr, 0x100)))
+                while length > 0:
+                    tmp = self.recv()
+                    buffer.extend(tmp)
+                    self.ack()
                     if self.status() != 0:
                         break
-                    magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
-                    tmp = self.usbread(slength, slength)
-                    bytestoread -= len(tmp)
                     if display:
-                        prog = (length - bytestoread) / length * 100
-                        if round(prog, 1) > old:
-                            print_progress(prog, 100, prefix='Progress:',
-                                           suffix='Complete, Sector:' + hex(length - bytestoread),
-                                           bar_length=50)
-                            old = round(prog, 1)
-                    if addr % 0x100:
-                        pos = addr - (addr // 0x100 * 0x100)
-                    else:
-                        pos = 0
-                    buffer.extend(tmp[pos:])
-                    addr = self.addr_to_block(addr, 0x100) + 0x100
-                if display:
-                    print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
+                        self.show_progress("Read", length - bytestoread, length, display)
+                    length -= len(tmp)
                 return buffer
-            return False
-        else:
-            if self.cmd_read_data(addr=addr, size=length, storage=storage, parttype=parttype):
-                if display:
-                    print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-                old = 0
-                bytestoread = length
-                if filename != "":
-                    try:
-                        with open(filename, "wb") as wf:
-                            while bytestoread > 0:
-                                magic, datatype, slength = unpack("<III", self.usbread(4 + 4 + 4))
-                                tmp = self.usbread(slength, slength)
-                                self.ack()
-                                bytestoread -= len(tmp)
-                                if display:
-                                    prog = (length - bytestoread) / length * 100
-                                    if round(prog, 1) > old:
-                                        print_progress(prog, 100, prefix='Progress:',
-                                                       suffix='Complete, Sector:' + hex(length - bytestoread),
-                                                       bar_length=50)
-                                        old = round(prog, 1)
-
-                                #print("A")
-                                #time.sleep(0.01)
-                                if self.status() != 0:
-                                    break
-                                #print("S")
-                                wf.write(tmp)
-
-                    except Exception as err:
-                        self.error("Couldn't write to " + filename + ". Error: " + str(err))
-                        return False
-                    if display:
-                        print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-                    return True
-                else:
-                    buffer = bytearray()
-                    while length > 0:
-                        tmp = self.recv()
-                        buffer.extend(tmp)
-                        self.ack()
-                        if self.status() != 0:
-                            break
-                        if display:
-                            prog = (length - bytestoread) / length * 100
-                            if round(prog, 1) > old:
-                                print_progress(prog, 100, prefix='Progress:',
-                                               suffix='Complete, Sector:' + hex(length - bytestoread), bar_length=50)
-                                old = round(prog, 1)
-                        length -= len(tmp)
-                    if display:
-                        print_progress(100, 100, prefix='Progress:', suffix='Complete', bar_length=50)
-                    return buffer
-            return False
+        return False
 
     def close(self):
         if self.send(self.Cmd.SHUTDOWN):
@@ -734,66 +800,53 @@ class DAXFlash(metaclass=LogBase):
         self.mtk.port.close()
         return False
 
-    def writeflash(self, addr, length, filename, partitionname, parttype=None, display=True):
-        """
-        if parttype is None or parttype == "user":
-            parttype = PartitionType.MTK_DA_EMMC_PART_USER
-        elif parttype == "boot1":
-            parttype = PartitionType.MTK_DA_EMMC_PART_BOOT1
-        elif parttype == "boot2":
-            parttype = PartitionType.MTK_DA_EMMC_PART_BOOT2
-        elif parttype == "gp1":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP1
-        elif parttype == "gp2":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP2
-        elif parttype == "gp3":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP3
-        elif parttype == "gp4":
-            parttype = PartitionType.MTK_DA_EMMC_PART_GP4
-        elif parttype == "rpmb":
-            parttype = PartitionType.MTK_DA_EMMC_PART_RPMB
-
+    def writeflash(self, addr, length, filename, partitionname, offset=0, parttype=None, display=True):
         if self.daconfig.flashtype == "nor":
             storage = DaStorage.MTK_DA_STORAGE_NOR
         elif self.daconfig.flashtype == "nand":
             storage = DaStorage.MTK_DA_STORAGE_NAND
         elif self.daconfig.flashtype == "ufs":
             storage = DaStorage.MTK_DA_STORAGE_UFS
+            if parttype == EMMC_PartitionType.MTK_DA_EMMC_PART_USER:
+                parttype = UFS_PartitionType.UFS_LU3
         elif self.daconfig.flashtype == "sdc":
             storage = DaStorage.MTK_DA_STORAGE_SDMMC
         else:
             storage = DaStorage.MTK_DA_STORAGE_EMMC
-        """
-        self.send_devctrl(self.Cmd.START_DL_INFO)
+
+        part_info = self.partitiontype_and_size(storage, parttype, length)
+        if not part_info:
+            return False
+        storage, parttype, length = part_info
+
+        #self.send_devctrl(self.Cmd.START_DL_INFO)
         plen = self.get_packet_length()
         bytestowrite = length
         write_packet_size = plen.write_packet_length
-        wsize = min(write_packet_size, length)
-        if self.send(self.Cmd.DOWNLOAD):
-            if self.status() == 0:
-                params = [partitionname, pack("<Q", wsize)]
-                if self.send_param(params):
-                    try:
-                        with open(filename, "rb") as rf:
-                            pos = 0
-                            while bytestowrite > 0:
-                                dsize = min(1024, bytestowrite)
-                                data = bytearray(rf.read(dsize))
-                                checksum = sum(data) & 0xFFFF
-                                dparams = [pack("<I", 0x0), pack("<I", checksum), data]
-                                if not self.send_param(dparams):
-                                    self.error("Error on writing pos 0x%08X" % pos)
-                                    return False
-                                bytestowrite -= dsize
-                                pos += dsize
-                            if self.status() == 0x0:
-                                self.send_devctrl(self.Cmd.CC_OPTIONAL_DOWNLOAD_ACT)
-                                return True
-                    except Exception as e:
-                        self.error(str(e))
-                        return False
-                else:
-                    self.error("Error on sending partition param. Right partition name ?")
+        if self.cmd_write_data(addr,length,storage,parttype):
+            try:
+                with open(filename, "rb") as rf:
+                    pos = 0
+                    rf.seek(offset)
+                    while bytestowrite > 0:
+                        if display:
+                            self.show_progress("Write", length - bytestowrite, length, display)
+                        dsize = min(write_packet_size, bytestowrite)
+                        data = bytearray(rf.read(dsize))
+                        checksum = sum(data) & 0xFFFF
+                        dparams = [pack("<I", 0x0), pack("<I", checksum), data]
+                        if not self.send_param(dparams):
+                            self.error("Error on writing pos 0x%08X" % pos)
+                            return False
+                        bytestowrite -= dsize
+                        pos += dsize
+                    if self.status() == 0x0:
+                        self.send_devctrl(self.Cmd.CC_OPTIONAL_DOWNLOAD_ACT)
+                        self.show_progress("Write", length, length, display)
+                        return True
+            except Exception as e:
+                self.error(str(e))
+                return False
         return False
 
     def sync(self):
@@ -827,11 +880,10 @@ class DAXFlash(metaclass=LogBase):
         self.info("Uploading stage 1...")
         with open(loader, 'rb') as bootldr:
             # stage 1
-            stage = 2
-            offset = self.daconfig.da[stage]["m_buf"]
-            size = self.daconfig.da[stage]["m_len"]
-            address = self.daconfig.da[stage]["m_start_addr"]
-            sig_len = self.daconfig.da[stage]["m_sig_len"]
+            offset = self.daconfig.da[2]["m_buf"]
+            size = self.daconfig.da[2]["m_len"]
+            address = self.daconfig.da[2]["m_start_addr"]
+            sig_len = self.daconfig.da[2]["m_sig_len"]
             bootldr.seek(offset)
             dadata = bootldr.read(size)
             if self.mtk.preloader.send_da(address, size, sig_len, dadata):
@@ -865,6 +917,8 @@ class DAXFlash(metaclass=LogBase):
             self.set_battery_opt(0x2)
             self.set_checksum_level(0x0)
             connagent = self.get_connection_agent()
+            # dev_fw_info=self.get_dev_fw_info()
+            # dramtype = self.get_dram_type()
             stage = None
             if connagent == b"brom":
                 stage = 2
@@ -899,8 +953,10 @@ class DAXFlash(metaclass=LogBase):
                     address = self.daconfig.da[stage]["m_start_addr"]  # at_address
                     # sig_len = self.daconfig.da[stage]["m_sig_len"]
                     bootldr.seek(offset)
-                    dadata = bootldr.read(size)
-                    if self.boot_to(address, dadata):
+                    da2 = bootldr.read(size)
+                    loaded = self.boot_to(address, da2)
+
+                    if loaded:
                         self.info("Successfully uploaded stage 2")
                         self.sram, self.dram = self.get_ram_info()
                         self.emmc = self.get_emmc_info()
@@ -922,6 +978,9 @@ class DAXFlash(metaclass=LogBase):
                         self.chipid = self.get_chip_id()
                         self.randomid = self.get_random_id()
                         if self.get_da_stor_life_check() == 0x0:
+                            cid = self.get_chip_id()
+                            self.info("DA-CODE      : 0x%X", (cid.hw_code<<4)+(cid.hw_code>>4))
+                            open(os.path.join("logs", "hwcode.txt"), "w").write(hex(cid.hw_code))
                             return True
                     else:
                         self.error("Error on booting to da (xflash)")
