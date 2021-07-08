@@ -1127,7 +1127,7 @@ class Mtk_Config(metaclass=LogBase):
         self.target_config = None
         self.chipconfig = chipconfig()
         if loglevel == logging.DEBUG:
-            logfilename = "log.txt"
+            logfilename = os.path.join("logs", "log.txt")
             if os.path.exists(logfilename):
                 os.remove(logfilename)
             fh = logging.FileHandler(logfilename)

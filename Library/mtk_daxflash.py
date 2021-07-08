@@ -11,6 +11,7 @@ from Library.utils import LogBase, print_progress, logsetup
 from Library.error import ErrorHandler
 from Library.daconfig import EMMC_PartitionType, UFS_PartitionType, DaStorage
 from Library.partition import Partition
+from Library.rw_patch import write32, read32
 from Library.hwcrypto import crypto_setup, hwcrypto
 
 

@@ -5,6 +5,7 @@ import sys
 import logging
 import os
 import time
+import array
 from struct import pack, unpack
 from Library.utils import LogBase, print_progress, read_object, logsetup
 from binascii import hexlify
@@ -879,6 +880,13 @@ class DALegacy(metaclass=LogBase):
                                 self.daconfig.flashsize = self.sdc["m_sdmmc_ua_size"]
                         elif self.daconfig.flashtype == "nor":
                             self.daconfig.flashsize = self.nor["m_nor_flash_size"]
+                        self.info("Reconnecting to preloader")
+                        self.set_usb_cmd()
+                        self.mtk.port.close()
+                        time.sleep(2)
+                        if self.mtk.port.cdc.connect():
+                            self.info("Connected to preloader")
+                        self.check_usb_cmd()
                         return True
                 return False
         else:
@@ -953,6 +961,15 @@ class DALegacy(metaclass=LogBase):
             if len(res) > 1:
                 if res[0] is self.Rsp.ACK[0]:
                     return True
+        return False
+
+    def set_usb_cmd(self):
+        if self.usbwrite(self.Cmd.USB_SETUP_PORT):  # 72
+            if self.usbwrite(b"\x01"):
+                res = self.usbread(1)
+                if len(res) > 0:
+                    if res[0] is self.Rsp.ACK[0]:
+                        return True
         return False
 
     def sdmmc_switch_part(self, partition=0x8):
@@ -1215,11 +1232,9 @@ class DALegacy(metaclass=LogBase):
                     size = bytestoread
                     if bytestoread > packetsize:
                         size = packetsize
-                    data = self.usbread(size)
-                    wf.write(data)
-                    # time.sleep(0.05)
+                    wf.write(self.usbread(size,0x400))
                     bytestoread -= size
-                    checksum = unpack(">H", self.usbread(2))[0]
+                    checksum = unpack(">H", self.usbread(1)+self.usbread(1))[0]
                     self.debug("Checksum: %04X" % checksum)
                     self.usbwrite(self.Rsp.ACK)
                     self.show_progress("Read", length-bytestoread, length, display)
@@ -1232,7 +1247,7 @@ class DALegacy(metaclass=LogBase):
                 size = bytestoread
                 if bytestoread > packetsize:
                     size = packetsize
-                buffer.extend(self.usbread(size))
+                buffer.extend(self.usbread(size,0x400))
                 bytestoread -= size
                 checksum = unpack(">H", self.usbread(2))[0]
                 self.debug("Checksum: %04X" % checksum)

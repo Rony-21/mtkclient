@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import logging
-import sys
 import time
 import argparse
 from binascii import hexlify
@@ -17,11 +16,14 @@ import hashlib
 class Stage2(metaclass=LogBase):
     def init_emmc(self):
         self.cdc.usbwrite(pack(">I", 0xf00dd00d))
-        self.cdc.usbwrite(pack(">I", 0x6000))
-        time.sleep(5)
-        if unpack("<I", self.cdc.usbread(4, 4))[0] == 0xD1D1D1D1:
-            return True
-        self.emmc_inited = True
+        self.cdc.usbwrite(pack(">I", 0x6001))
+        if unpack("<I", self.cdc.usbread(4))[0] != 0x1:
+            self.cdc.usbwrite(pack(">I", 0xf00dd00d))
+            self.cdc.usbwrite(pack(">I", 0x6000))
+            time.sleep(2)
+            if unpack("<I", self.cdc.usbread(4))[0] == 0xD1D1D1D1:
+                return True
+            self.emmc_inited = True
         return False
 
     def jump(self, addr):
@@ -29,7 +31,7 @@ class Stage2(metaclass=LogBase):
         self.cdc.usbwrite(pack(">I", 0x4001))
         self.cdc.usbwrite(pack(">I", addr))
         time.sleep(5)
-        if unpack("<I", self.cdc.usbread(4, 4))[0] == 0xD0D0D0D0:
+        if unpack("<I", self.cdc.usbread(4))[0] == 0xD0D0D0D0:
             return True
         return False
 
@@ -40,7 +42,7 @@ class Stage2(metaclass=LogBase):
             self.cdc.usbwrite(pack(">I", 0x4002))
             self.cdc.usbwrite(pack(">I", addr + (pos * 4)))
             self.cdc.usbwrite(pack(">I", 4))
-            result.append(unpack("<I", self.cdc.usbread(4, 4))[0])
+            result.append(unpack("<I", self.cdc.usbread(4))[0])
         if len(result) == 1:
             return result[0]
         return result
@@ -144,7 +146,7 @@ class Stage2(metaclass=LogBase):
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
             self.cdc.usbwrite(pack(">I", 0x1000))
             self.cdc.usbwrite(pack(">I", sector))
-            tmp = self.cdc.usbread(0x200, 0x200)
+            tmp = self.cdc.usbread(0x200)
             if len(tmp) != 0x200:
                 self.error("Error on getting data")
                 return
@@ -152,7 +154,7 @@ class Stage2(metaclass=LogBase):
                 prog = sector / sectors * 100
                 if round(prog, 1) > old:
                     print_progress(prog, 100, prefix='Progress:',
-                                   suffix='Complete, Sector:' + hex((sectors * 0x200) - bytestoread),
+                                   suffix='Complete, Sector:' + hex(sector),
                                    bar_length=50)
                     old = round(prog, 1)
             bytesread += len(tmp)
@@ -212,6 +214,21 @@ class Stage2(metaclass=LogBase):
                 self.readflash(type=1, start=start, length=length, display=True, filename=filename)
             print("Done")
 
+    def boot2(self, start, length, filename):
+        sectors = 0
+        if start != 0:
+            start = (start // 0x200)
+        if length != 0:
+            sectors = (length // 0x200) + (1 if length % 0x200 else 0)
+        self.info("Reading boot2...")
+        if self.cdc.connected:
+            if sectors == 0:
+                self.readflash(type=2, start=0, length=0x40000, display=True, filename=filename)
+                print("Done")
+            else:
+                self.readflash(type=1, start=start, length=length, display=True, filename=filename)
+            print("Done")
+
     def memread(self, start, length, filename=None):
         bytestoread = length
         addr = start
@@ -226,9 +243,9 @@ class Stage2(metaclass=LogBase):
             self.cdc.usbwrite(pack(">I", addr + pos))
             self.cdc.usbwrite(pack(">I", size))
             if filename is None:
-                data += self.cdc.usbread(size, size)
+                data += self.cdc.usbread(size)
             else:
-                wf.write(self.cdc.usbread(size, size))
+                wf.write(self.cdc.usbread(size))
             bytestoread -= size
             pos += size
         self.info(f"{hex(start)}: " + hexlify(data).decode('utf-8'))
@@ -302,7 +319,7 @@ class Stage2(metaclass=LogBase):
                 self.cdc.usbwrite(pack(">I", 0xf00dd00d))
                 self.cdc.usbwrite(pack(">I", 0x2000))
                 self.cdc.usbwrite(pack(">H", sector))
-                tmp = self.cdc.usbread(0x100, 0x100)
+                tmp = self.cdc.usbread(0x100)
                 if reverse:
                     tmp = tmp[::-1]
                 if len(tmp) != 0x100:
@@ -369,6 +386,7 @@ def getint(valuestr):
 cmds = {
     "rpmb": 'Dump rpmb',
     "preloader": 'Dump preloader',
+    "boot2": 'Dump boot2',
     "reboot": 'Reboot phone',
     "memread": "Read memory [Example: memread --start 0 --length 0x10]",
     "memwrite": "Write memory [Example: memwrite --start 0x200000 --data 11223344",
@@ -389,7 +407,7 @@ def showcommands():
 
 def main():
     parser = argparse.ArgumentParser(description=info)
-    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, memread, memwrite, keys")
+    parser.add_argument("cmd", help="Valid commands are: rpmb, preloader, boot2, memread, memwrite, keys")
     parser.add_argument('--reverse', dest='reverse', action="store_true",
                         help='Reverse byte order (example: rpmb command)')
     parser.add_argument('--length', dest='length', type=str,
@@ -430,6 +448,12 @@ def main():
             else:
                 filename = args.filename
             st2.preloader(start, length, filename=filename)
+        elif cmd == "boot2":
+            if args.filename is None:
+                filename = os.path.join("logs", "boot2")
+            else:
+                filename = args.filename
+            st2.boot2(start, length, filename=filename)
         elif cmd == "memread":
             if args.start is None:
                 print("Option --start is needed")

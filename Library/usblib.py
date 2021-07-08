@@ -3,7 +3,7 @@
 # (c) B.Kerler 2018-2021 MIT License
 import io
 import logging
-
+from profilehooks import profile
 import usb.core  # pyusb
 import usb.util
 import time
@@ -343,18 +343,18 @@ class usb_class(metaclass=LogBase):
     def read(self, length=0x80, timeout=None):
         if self.loglevel == logging.DEBUG:
             self.debug(inspect.currentframe().f_back.f_code.co_name + ":" + hex(length))
-        tmp = bytearray()
-        extend = tmp.extend
+        rxBuffer = array.array('B')
+        extend = rxBuffer.extend
         if timeout is None:
             timeout = self.timeout
         buffer = self.buffer[:length]
         ep_read = self.EP_IN.read
-        while len(tmp) == 0:
+        while len(rxBuffer) == 0:
             try:
                 length=ep_read(buffer, timeout)
                 extend(buffer[:length])
-                if len(tmp)>0:
-                    return tmp
+                if len(rxBuffer)>0:
+                    return rxBuffer
             except usb.core.USBError as e:
                 error = str(e.strerror)
                 if "timed out" in error:
@@ -362,8 +362,8 @@ class usb_class(metaclass=LogBase):
                     # time.sleep(0.05)
                     # print("Waiting...")
                     self.debug("Timed out")
-                    self.debug(tmp)
-                    return tmp
+                    self.debug(rxBuffer)
+                    return rxBuffer
                 elif "Overflow" in error:
                     self.error("USB Overflow")
                     sys.exit(0)
@@ -373,8 +373,8 @@ class usb_class(metaclass=LogBase):
                 else:
                     break
         if self.loglevel == logging.DEBUG:
-            self.verify_data(tmp, "RX:")
-        return tmp
+            self.verify_data(rxBuffer, "RX:")
+        return rxBuffer
 
     def ctrl_transfer(self, bmRequestType, bRequest, wValue, wIndex, data_or_wLength):
         ret = self.device.ctrl_transfer(bmRequestType=bmRequestType, bRequest=bRequest, wValue=wValue, wIndex=wIndex,
@@ -422,9 +422,11 @@ class usb_class(metaclass=LogBase):
     def rbyte(self, count=1):
         return self.usbread(count)
 
-    def usbread(self, resplen):
+    def usbread(self, resplen, size=None):
+        if size is None:
+            size = resplen
         res = bytearray()
-        while len(res)<resplen: res.extend(self.read(resplen))
+        while len(res)<resplen: res.extend(self.read(size))
         return res
 
 

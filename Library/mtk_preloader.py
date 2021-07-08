@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
 import os
+import time
 import logging
 from Library.utils import LogBase, logsetup
 from enum import Enum
@@ -390,6 +391,7 @@ class Preloader(metaclass=LogBase):
                     return True
                 else:
                     self.error(f"Jump_DA status error:{self.eh.status(status)}")
+
         return False
 
     def jump_da64(self, addr: int):
