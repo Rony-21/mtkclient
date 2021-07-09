@@ -3,7 +3,6 @@
 # (c) B.Kerler 2018-2021 MIT License
 import io
 import logging
-from profilehooks import profile
 import usb.core  # pyusb
 import usb.util
 import time
