@@ -237,7 +237,7 @@ class Stage2(metaclass=LogBase):
         if filename is not None:
             wf = open(filename, "wb")
         while bytestoread > 0:
-            size = min(bytestoread, 0x200)
+            size = min(bytestoread, 0x100)
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
             self.cdc.usbwrite(pack(">I", 0x4002))
             self.cdc.usbwrite(pack(">I", addr + pos))
@@ -266,7 +266,7 @@ class Stage2(metaclass=LogBase):
         addr = start
         pos = 0
         while bytestowrite > 0:
-            size = min(bytestowrite, 0x200)
+            size = min(bytestowrite, 0x100)
             self.cdc.usbwrite(pack(">I", 0xf00dd00d))
             self.cdc.usbwrite(pack(">I", 0x4000))
             self.cdc.usbwrite(pack(">I", addr + pos))
